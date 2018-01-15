@@ -1,4 +1,4 @@
-package net.jackadull.dirish.model
+package net.jackadull.dirish.model.fs
 
 // TODO
 sealed trait RelativePathSpec {

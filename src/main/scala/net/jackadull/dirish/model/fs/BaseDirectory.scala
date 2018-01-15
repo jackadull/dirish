@@ -1,4 +1,4 @@
-package net.jackadull.dirish.model
+package net.jackadull.dirish.model.fs
 
 import java.util.UUID
 
