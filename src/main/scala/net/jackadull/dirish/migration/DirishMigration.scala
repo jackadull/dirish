@@ -8,9 +8,7 @@ import net.jackadull.dirish.model.DirishModel
 import net.jackadull.dirish.model.environment.{DirishIO, Environment}
 import net.jackadull.dirish.model.project.Project
 
-import scala.annotation.tailrec
-import scala.language.postfixOps
-import scala.language.higherKinds
+import scala.language.{higherKinds, postfixOps}
 
 /** Computes the next migration step required to migrate from one [[net.jackadull.dirish.model.DirishModel]] closer to
   * another.

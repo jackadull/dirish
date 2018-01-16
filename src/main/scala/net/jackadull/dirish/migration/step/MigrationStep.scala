@@ -7,7 +7,6 @@ import net.jackadull.dirish.model.DirishModel
 import net.jackadull.dirish.model.environment.{DirishIO, Environment}
 import net.jackadull.dirish.model.fs.{AbsolutePathSpec, RelativePathSpec}
 
-import scala.annotation.tailrec
 import scala.language.higherKinds
 
 /** A command that can be executed on an environment, and that changes one [[net.jackadull.dirish.model.DirishModel]],
