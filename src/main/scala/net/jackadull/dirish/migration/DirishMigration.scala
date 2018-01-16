@@ -5,11 +5,12 @@ import java.util.UUID
 import net.jackadull.dirish.migration.step.MigrationStep
 import net.jackadull.dirish.migration.step.MigrationStep._
 import net.jackadull.dirish.model.DirishModel
-import net.jackadull.dirish.model.environment.Environment
+import net.jackadull.dirish.model.environment.{DirishIO, Environment}
 import net.jackadull.dirish.model.project.Project
 
 import scala.annotation.tailrec
 import scala.language.postfixOps
+import scala.language.higherKinds
 
 /** Computes the next migration step required to migrate from one [[net.jackadull.dirish.model.DirishModel]] closer to
   * another.
@@ -33,16 +34,18 @@ import scala.language.postfixOps
   *
   * *Note*: It is important that the given source and target models validate, as otherwise certain necessary
   * preconditions might not hold, leading to unexpected behaviour. */
+// TODO migration type that includes current, target and current run-time conditions (maybe?)
 object DirishMigration extends ((DirishModel,DirishModel)⇒Option[MigrationStep]) {
   def apply(current:DirishModel, target:DirishModel):Option[MigrationStep] =
     MigrationAlgorithm(current, target) nextStep
 
-  @tailrec def continuously(current:DirishModel, target:DirishModel, environment:Environment, callback:DirishModel⇒Unit = {_ ⇒}):Option[Exception] =
-    if(current == target) None
+  // TODO callback with A
+  def continuously[A[_]](current:DirishModel, target:DirishModel, environment:Environment[A], callback:DirishModel⇒Unit = {_ ⇒})(implicit io:DirishIO[A]):A[Option[Exception]] =
+    if(current == target) io unit None
     else DirishMigration(current, target) match {
-      case None ⇒ Some(new IllegalStateException("No further migration step found."))
-      case Some(step) ⇒ step(current, environment) match {
-        case Left((exception, newModelOpt)) ⇒ newModelOpt foreach callback; Some(exception)
+      case None ⇒ io unit Some(new IllegalStateException("No further migration step found."))
+      case Some(step) ⇒ io.flatMap(step(current, environment)) {
+        case Left((exception, newModelOpt)) ⇒ newModelOpt foreach callback; io unit Some(exception)
         case Right(nextState) ⇒ callback(nextState); continuously(nextState, target, environment, callback)
       }
     }
