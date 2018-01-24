@@ -12,6 +12,7 @@
 
     <properties>
         <encoding>UTF-8</encoding>
+        <jgit.version>4.10.0.201712302008-r</jgit.version>
         <maven.compiler.source>1.9</maven.compiler.source>
         <maven.compiler.target>1.9</maven.compiler.target>
         <maven-surefire-plugin.version>2.20.1</maven-surefire-plugin.version>
@@ -34,16 +35,23 @@
             <version>${scalatest.version}</version>
             <scope>test</scope>
         </dependency>
+        <dependency>
+            <groupId>org.eclipse.jgit</groupId>
+            <artifactId>org.eclipse.jgit</artifactId>
+            <version>${jgit.version}</version>
+        </dependency>
     </dependencies>
 
     <build>
-        <sourceDirectory>src/main/scala</sourceDirectory>
-        <testSourceDirectory>src/test/scala</testSourceDirectory>
         <plugins>
             <plugin>
                 <groupId>net.alchim31.maven</groupId>
                 <artifactId>scala-maven-plugin</artifactId>
                 <version>${scala-maven-plugin.version}</version>
+                <configuration>
+                    <source>1.9</source>
+                    <target>1.9</target>
+                </configuration>
                 <executions>
                     <execution>
                         <goals>
@@ -51,6 +59,9 @@
                             <goal>testCompile</goal>
                         </goals>
                         <configuration>
+                            <args>
+                                <arg>-feature</arg>
+                            </args>
                             <scalaVersion>${scala.version}</scalaVersion>
                         </configuration>
                     </execution>
