@@ -13,3 +13,11 @@
     * [What is launchd?](http://www.launchd.info/)
   * Make sure that it runs under the correct user
   * Enable automatic updates/reloads when code changes
+* FTP/HTTP downloads, based on GitHub releases
+  * [Example](https://github.com/scala/scala/releases.atom)
+  * Might also be called _materialized releases_
+* Soft links on the host file system, pointing into a project
+* Complimentarily to regular Git push/fetch jobs, also implement an active notification protocol
+  * Clients actively push a notification when they pushed something (Git hook?)
+  * Other clients receive those notifications, and then pull the changes
+  * Communication protocols may include chat systems, such as Slack, Twitter or IRC
