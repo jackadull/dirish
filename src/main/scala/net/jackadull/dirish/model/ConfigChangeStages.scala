@@ -1,5 +1,7 @@
 package net.jackadull.dirish.model
 
+import java.util.UUID
+
 trait ConfigChangeStages extends ConfigChangeStageWithNextStage {
   override def nextStage:GitModuleRemotesRemovedStage
 }
@@ -14,14 +16,20 @@ sealed trait ConfigChangeStageWithNextStage extends ConfigChangeStage {
 trait GitModuleRemotesRemovedStage extends ConfigChangeStageWithNextStage {
   def gitModuleRemotesRemoved:Set[GitModuleRemoteRemovedSpec]
   override def nextStage:GitModulesRemovedStage
+  def willModuleBeRemoved(projectID:UUID):Boolean =
+    nextStage.gitModulesRemoved.exists(_.projectID==projectID)
 }
 trait GitModulesRemovedStage extends ConfigChangeStageWithNextStage {
   def gitModulesRemoved:Set[GitModuleRemovedSpec]
   override def nextStage:ProjectsRemovedStage
+  def willProjectBeRemoved(projectID:UUID):Boolean =
+    nextStage.projectsRemoved.exists(_.id==projectID)
 }
 trait ProjectsRemovedStage extends ConfigChangeStageWithNextStage {
   def projectsRemoved:Set[ProjectRemovedSpec]
   override def nextStage:BaseDirectoriesRemovedStage
+  def willBaseDirectoryBeRemoved(baseDirectoryID:UUID):Boolean =
+    nextStage.baseDirectoriesRemoved.exists(_.id==baseDirectoryID)
 }
 trait BaseDirectoriesRemovedStage extends ConfigChangeStageWithNextStage {
   def baseDirectoriesRemoved:Set[BaseDirectoryRemovedSpec]

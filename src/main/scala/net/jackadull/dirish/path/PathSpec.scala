@@ -5,6 +5,7 @@ import scala.language.postfixOps
 sealed trait PathSpec {
   def /(that:RelativePathSpec):PathSpec
   def /(that:String):PathSpec
+  def hasLastElement(lastEl:String):Boolean
   private[path] def elements:Stream[PathSpec]
 }
 
@@ -35,19 +36,23 @@ final case class PathElementSpec(name:String) extends RelativePathSpec {
   require(name != "..", s"'..' is not a valid path element.")
   if(name.length > 1) require(!(name startsWith "$"), s"Path element '$name' cannot start with a dollar sign.")
 
+  def hasLastElement(lastEl:String):Boolean = name == lastEl
   override def toString = name
   private[path] def elements = Stream(this)
 }
 final case class CompositeRelativePathSpec(parent:RelativePathSpec, child:PathElementSpec) extends RelativePathSpec {
+  def hasLastElement(lastEl:String):Boolean = child hasLastElement lastEl
   private[path] def elements = parent.elements :+ child
   override def toString = s"$parent/$child"
 }
 
 final case class CompositeAbsolutePathSpec(parent:AbsolutePathSpec, child:PathElementSpec) extends AbsolutePathSpec {
+  def hasLastElement(lastEl:String):Boolean = child hasLastElement lastEl
   private[path] def elements = parent.elements :+ child
   override def toString = s"$parent/$child"
 }
 sealed trait AbsolutePathBase extends AbsolutePathSpec {
+  def hasLastElement(lastEl:String):Boolean = false
   private[path] def elements = Stream(this)
 }
 object UserHomePathSpec extends AbsolutePathBase {override def toString = "$HOME"}

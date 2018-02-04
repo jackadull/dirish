@@ -19,6 +19,10 @@ final case class DirectoryFileInfo(path:AbsolutePathSpec) extends ExistingFileIn
   def isDirectory = true
   def isPlainFile = false
 }
+final case class OtherKindOfFileInfo(path:AbsolutePathSpec) extends ExistingFileInfo {
+  def isDirectory = false
+  def isPlainFile = false
+}
 final case class PlainFileInfo(path:AbsolutePathSpec) extends ExistingFileInfo {
   def isDirectory = false
   def isPlainFile = true

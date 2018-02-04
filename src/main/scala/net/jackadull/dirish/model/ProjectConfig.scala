@@ -7,6 +7,12 @@ import net.jackadull.dirish.path.{AbsolutePathSpec, RelativePathSpec}
 import scala.language.postfixOps
 
 sealed trait ProjectConfig {
+  def baseDirectoryPath(baseDirectoryID:UUID):Option[AbsolutePathSpec]
+  def projectBaseDirectoryID(projectID:UUID):Option[UUID]
+  def projectFirstRemote(projectID:UUID):Option[(String,String)]
+  def projectIDs:Set[UUID]
+  def projectLocalPath(projectID:UUID):Option[RelativePathSpec]
+
   def addBaseDirectory(id:UUID, path:AbsolutePathSpec):Either[BaseDirectoryAddError,ProjectConfig]
   def addGitModule(projectID:UUID, firstRemote:(String,String)):Either[GitModuleAddError,ProjectConfig]
   def addGitModuleRemote(projectID:UUID, newRemote:(String,String)):Either[GitModuleAddRemoteError,ProjectConfig]
@@ -37,27 +43,27 @@ object ProjectConfig {
     private lazy val toAdditionalRemotes:Set[(UUID,String,String)] = allAdditionalRemotes(to)
 
     private trait StageImpl {
-      def baseDirectoriesAdded:Set[BaseDirectoryAddedSpec] =
+      lazy val baseDirectoriesAdded:Set[BaseDirectoryAddedSpec] =
         toBaseDirectoryAddedSpecs(addedEntries(from baseDirectories, to baseDirectories))
-      def baseDirectoriesMoved:Set[BaseDirectoryMovedSpec] =
+      lazy val baseDirectoriesMoved:Set[BaseDirectoryMovedSpec] =
         toBaseDirectoryMovedSpecs(movedEntries(from baseDirectories, to baseDirectories))
-      def baseDirectoriesRemoved:Set[BaseDirectoryRemovedSpec] =
+      lazy val baseDirectoriesRemoved:Set[BaseDirectoryRemovedSpec] =
         toBaseDirectoryRemovedSpecs(removedEntries(from baseDirectories, to baseDirectories))
-      def gitModuleFirstRemotesChanged:Set[GitModuleFirstRemoteChangedSpec] =
+      lazy val gitModuleFirstRemotesChanged:Set[GitModuleFirstRemoteChangedSpec] =
         toGitModuleFirstRemotesChangedSpecs(movedEntries(from gitModules, to gitModules))
-      def gitModuleRemotesAdded:Set[GitModuleRemoteAddedSpec] =
+      lazy val gitModuleRemotesAdded:Set[GitModuleRemoteAddedSpec] =
         toGitModuleRemoteAddedSpecs(toAdditionalRemotes -- fromAdditionalRemotes)
-      def gitModuleRemotesRemoved:Set[GitModuleRemoteRemovedSpec] =
+      lazy val gitModuleRemotesRemoved:Set[GitModuleRemoteRemovedSpec] =
         toGitModuleRemoteRemovedSpecs(fromAdditionalRemotes -- toAdditionalRemotes)
-      def gitModulesAdded:Set[GitModuleAddedSpec] =
+      lazy val gitModulesAdded:Set[GitModuleAddedSpec] =
         toGitModuleAddedSpecs(addedEntries(from gitModules, to gitModules))
-      def gitModulesRemoved:Set[GitModuleRemovedSpec] =
+      lazy val gitModulesRemoved:Set[GitModuleRemovedSpec] =
         toGitModuleRemovedSpecs(removedEntries(from gitModules, to gitModules) keySet)
-      def projectsAdded:Set[ProjectAddedSpec] =
+      lazy val projectsAdded:Set[ProjectAddedSpec] =
         toProjectAddedSpecs(addedEntries(from projects, to projects))
-      def projectsMoved:Set[ProjectMovedSpec] =
+      lazy val projectsMoved:Set[ProjectMovedSpec] =
         toProjectMovedSpecs(movedEntries(from projects, to projects))
-      def projectsRemoved:Set[ProjectRemovedSpec] =
+      lazy val projectsRemoved:Set[ProjectRemovedSpec] =
         toProjectRemovedSpecs(removedEntries(from projects, to projects))
     }
 
@@ -117,6 +123,12 @@ private final case class ProjectConfigData(
   gitModules:Map[UUID,(String,String)] = Map(),
   projects:Map[UUID,(UUID,RelativePathSpec)] = Map()
 ) extends ProjectConfig {
+  def baseDirectoryPath(baseDirectoryID:UUID):Option[AbsolutePathSpec] = baseDirectories.get(baseDirectoryID)
+  def projectBaseDirectoryID(projectID:UUID):Option[UUID] = projects.get(projectID).map(_._1)
+  def projectFirstRemote(projectID:UUID):Option[(String,String)] = gitModules.get(projectID)
+  def projectIDs:Set[UUID] = projects keySet
+  def projectLocalPath(projectID:UUID):Option[RelativePathSpec] = projects.get(projectID).map(_._2)
+
   def addBaseDirectory(id:UUID, path:AbsolutePathSpec) =
     if(baseDirectories contains id) Left(BaseDirectoryWithSameIDAlreadyExists(id))
     else if(baseDirectories.values exists {_ == path}) Left(BaseDirectoryWithSamePathAlreadyExists(path))
