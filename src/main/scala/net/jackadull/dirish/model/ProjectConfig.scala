@@ -7,7 +7,9 @@ import net.jackadull.dirish.path.{AbsolutePathSpec, RelativePathSpec}
 import scala.language.postfixOps
 
 sealed trait ProjectConfig {
+  def baseDirectoryIDs:Set[UUID]
   def baseDirectoryPath(baseDirectoryID:UUID):Option[AbsolutePathSpec]
+  def projectAdditionalGitRemotes(projectID:UUID):Set[(String,String)]
   def projectBaseDirectoryID(projectID:UUID):Option[UUID]
   def projectFirstRemote(projectID:UUID):Option[(String,String)]
   def projectIDs:Set[UUID]
@@ -123,7 +125,9 @@ private final case class ProjectConfigData(
   gitModules:Map[UUID,(String,String)] = Map(),
   projects:Map[UUID,(UUID,RelativePathSpec)] = Map()
 ) extends ProjectConfig {
+  def baseDirectoryIDs:Set[UUID] = baseDirectories keySet
   def baseDirectoryPath(baseDirectoryID:UUID):Option[AbsolutePathSpec] = baseDirectories.get(baseDirectoryID)
+  def projectAdditionalGitRemotes(projectID:UUID):Set[(String,String)] = gitModuleAdditionalRemotes.getOrElse(projectID, Set())
   def projectBaseDirectoryID(projectID:UUID):Option[UUID] = projects.get(projectID).map(_._1)
   def projectFirstRemote(projectID:UUID):Option[(String,String)] = gitModules.get(projectID)
   def projectIDs:Set[UUID] = projects keySet

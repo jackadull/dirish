@@ -21,3 +21,6 @@
   * Clients actively push a notification when they pushed something (Git hook?)
   * Other clients receive those notifications, and then pull the changes
   * Communication protocols may include chat systems, such as Slack, Twitter or IRC
+* Generalize path elements
+  * Instead of throwing exceptions, make the constructors return `Either`
+* Better reporting of semantic errors, containing the source position

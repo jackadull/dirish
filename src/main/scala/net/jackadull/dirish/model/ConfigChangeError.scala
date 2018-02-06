@@ -2,9 +2,10 @@ package net.jackadull.dirish.model
 
 import java.util.UUID
 
+import net.jackadull.dirish.marshalling.ConfigSemanticError
 import net.jackadull.dirish.path.{AbsolutePathSpec, RelativePathSpec}
 
-sealed trait ConfigChangeError
+sealed trait ConfigChangeError extends ConfigSemanticError
 
 sealed trait BaseDirectoryAddError extends ConfigChangeError
 sealed trait BaseDirectoryMoveError extends ConfigChangeError
