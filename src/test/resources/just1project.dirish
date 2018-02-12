@@ -1,0 +1,7 @@
+$HOME/p2: 7d7ea83f-33fd-43d8-a4bd-1199b8039ad1 {
+  prv/tool {
+    dirish: a2d26c54-9056-46fb-add6-c76334619bd1 {
+      git {origin ssh://git@foo.bar.com/prj/dirish.git}
+    }
+  }
+}

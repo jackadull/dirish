@@ -85,7 +85,7 @@ object ProjectConfig {
   }
 
   private def addedEntries[K,V](from:Map[K,V], to:Map[K,V]):Map[K,V] = to -- from.keySet
-  private def movedEntries[K,V](from:Map[K,V], to:Map[K,V]):Map[K,(V,V)] = from collect {case (k,v) if to contains k ⇒ (k,(v,to(k)))}
+  private def movedEntries[K,V](from:Map[K,V], to:Map[K,V]):Map[K,(V,V)] = from collect {case (k,v) if (to contains k) && (to(k)!=v) ⇒ (k,(v,to(k)))}
   private def removedEntries[K,V](from:Map[K,V], to:Map[K,V]):Map[K,V] = from -- to.keySet
 
   private def toBaseDirectoryAddedSpecs(entries:Traversable[(UUID,AbsolutePathSpec)]):Set[BaseDirectoryAddedSpec] =

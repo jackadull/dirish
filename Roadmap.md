@@ -1,7 +1,8 @@
 # Roadmap #
 
+* Better test coverage
+* Ensure that empty directories get removed
 * Detect circular/linear dependencies in _move_ type changes
-* Config status marshalling
 * Update (pull/fetch) all Git modules
 * Conditionals: skip certain steps when a certain condition is not true
 * Continuous background process (daemon?)
@@ -24,3 +25,8 @@
 * Generalize path elements
   * Instead of throwing exceptions, make the constructors return `Either`
 * Better reporting of semantic errors, containing the source position
+* Enable several configs side-by-side
+  * Use a config-file-wide unique ID for identification
+  * Either that, or work with an include mechanism
+* Nicer `toString` results, all across the board
+* Some way to re-upload all the projects back to a GitLab

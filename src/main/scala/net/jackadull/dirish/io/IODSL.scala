@@ -1,5 +1,7 @@
 package net.jackadull.dirish.io
 
+import java.nio.charset.Charset
+
 import net.jackadull.dirish.path.AbsolutePathSpec
 
 import scala.language.{higherKinds, postfixOps}
@@ -40,6 +42,9 @@ object IODSL {
   final case class CreateDirectory(directoryPath:AbsolutePathSpec) extends IOOp[CreateDirectoryResult] {
     def instantiate[I[+_]](io:IO[I]):I[CreateDirectoryResult] = io createDirectory directoryPath
   }
+  final case class CreateLockFile(path:AbsolutePathSpec) extends IOOp[CreateLockFileResult] {
+    def instantiate[I[+_]](io:IO[I]):I[CreateLockFileResult] = io createLockFile path
+  }
   final case class GetFileInfo(path:AbsolutePathSpec) extends IOOp[GetFileInfoResult] {
     def instantiate[I[+_]](io:IO[I]):I[GetFileInfoResult] = io getFileInfo path
   }
@@ -64,11 +69,23 @@ object IODSL {
   final case class MoveToTrash(path:AbsolutePathSpec) extends IOOp[MoveToTrashResult] {
     def instantiate[I[+_]](io:IO[I]):I[MoveToTrashResult] = io moveToTrash path
   }
+  final case class ParameterValue[A](parameter:IOParameter[A]) extends IOOp[A] {
+    def instantiate[I[+_]](io:IO[I]):I[A] = io parameterValue parameter
+  }
+  final case class ReadFileAsString(path:AbsolutePathSpec, charset:Charset) extends IOOp[ReadFileAsStringResult] {
+    def instantiate[I[+_]](io:IO[I]):I[ReadFileAsStringResult] = io readFileAsString (path, charset)
+  }
+  final case class RemoveFile(path:AbsolutePathSpec) extends IOOp[RemoveFileResult] {
+    def instantiate[I[+_]](io:IO[I]):I[RemoveFileResult] = io removeFile path
+  }
   final case class RemoveGitModule(gitModulePath:AbsolutePathSpec) extends IOOp[RemoveGitModuleResult] {
     def instantiate[I[+_]](io:IO[I]):I[RemoveGitModuleResult] = io removeGitModule gitModulePath
   }
   final case class RemoveGitModuleRemote(gitModulePath:AbsolutePathSpec, remoteName:String) extends IOOp[RemoveGitModuleRemoteResult] {
     def instantiate[I[+_]](io:IO[I]):I[RemoveGitModuleRemoteResult] = io removeGitModuleRemote (gitModulePath, remoteName)
+  }
+  final case class SaveStringToFile(path:AbsolutePathSpec, contents:String, charset:Charset) extends IOOp[SaveStringToFileResult] {
+    def instantiate[I[+_]](io:IO[I]):I[SaveStringToFileResult] = io saveStringToFile (path, contents, charset)
   }
 
   final case class IOAggregate[A,B](as:Traversable[IOOp[A]], z:B, seqop:(B,A)⇒B, combop:(B,B)⇒B) extends IOOp[B] {

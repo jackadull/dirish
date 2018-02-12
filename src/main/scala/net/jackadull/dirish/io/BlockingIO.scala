@@ -2,11 +2,12 @@ package net.jackadull.dirish.io
 
 import java.awt.Desktop
 import java.awt.Desktop.Action.MOVE_TO_TRASH
-import java.io.File
+import java.io.{File, FileInputStream, FileOutputStream, OutputStreamWriter}
+import java.nio.charset.Charset
 import java.nio.file._
 import java.util.logging.{Level, Logger}
 
-import net.jackadull.dirish.io.LogCategory.{BeforeChange, FailedChange, PerformedChange, SkippedChangeForDownstreamChange}
+import net.jackadull.dirish.io.LogCategory._
 import net.jackadull.dirish.path.{AbsolutePathSpec, CompositeAbsolutePathSpec, PathElementSpec, UserHomePathSpec}
 import org.eclipse.jgit.api.Git
 import org.eclipse.jgit.lib.BranchTrackingStatus
@@ -60,6 +61,11 @@ class BlockingIO(userHomePath:String) extends IO[BlockingV] {
     else if(file mkdirs()) IOSuccess else DirectoryNotCreated
   }
 
+  def createLockFile(path:AbsolutePathSpec):BlockingV[CreateLockFileResult] = vtry {
+    try {Files createFile (toFile(path) toPath); IOSuccess}
+    catch {case _:FileAlreadyExistsException ⇒ TargetFileAlreadyExists}
+  }
+
   def getFileInfo(path:AbsolutePathSpec):BlockingV[GetFileInfoResult] = vtry {
     val file = toFile(path)
     FileInfoResult(
@@ -98,7 +104,9 @@ class BlockingIO(userHomePath:String) extends IO[BlockingV] {
   def log(category:LogCategory, message:String, throwableOpt:Option[Throwable]):BlockingV[LogResult] = v {
     val level = category match {
       case BeforeChange ⇒ Level.INFO
+      case ExecutionFailure ⇒ Level.SEVERE
       case FailedChange ⇒ Level.SEVERE
+      case NonCriticalExecutionFailure ⇒ Level.WARNING
       case PerformedChange ⇒ Level.INFO
       case SkippedChangeForDownstreamChange ⇒ Level.FINE
     }
@@ -123,6 +131,17 @@ class BlockingIO(userHomePath:String) extends IO[BlockingV] {
     else if((Desktop isDesktopSupported) && (Desktop.getDesktop isSupported MOVE_TO_TRASH))
       if (Desktop.getDesktop.moveToTrash(file)) IOSuccess else NotMovedToTrash
     else MoveToTrashNotSupported
+  }
+
+  def readFileAsString(path:AbsolutePathSpec, charset:Charset):BlockingV[ReadFileAsStringResult] = vtry {
+    val input = new FileInputStream(toFile(path))
+    try {StringIOResult(new String(input.readAllBytes(), charset))}
+    finally {input close()}
+  }
+
+  def removeFile(path:AbsolutePathSpec):BlockingV[RemoveFileResult] = vtry {
+    try {Files delete (toFile(path) toPath); IOSuccess}
+    catch {case _:NoSuchFileException ⇒ FileNotFound}
   }
 
   def removeGitModule(gitModulePath:AbsolutePathSpec):BlockingV[RemoveGitModuleResult] = vtry {
@@ -151,7 +170,13 @@ class BlockingIO(userHomePath:String) extends IO[BlockingV] {
     }
   }
 
-  private def v[A](f: ⇒A):BlockingV[A] = new BlockingV[A] {protected def execute() = f}
+  def saveStringToFile(path:AbsolutePathSpec, contents:String, charset:Charset):BlockingV[SaveStringToFileResult] = vtry {
+    val writer = new OutputStreamWriter(new FileOutputStream(toFile(path)), charset)
+    try {writer write contents} finally {writer close()}
+    IOSuccess
+  }
+
+  protected def v[A](f: ⇒A):BlockingV[A] = new BlockingV[A] {protected def execute() = f}
   private def vtry[A>:GenericIOError](f: ⇒A):BlockingV[A] = v {try {f} catch {case t:Throwable ⇒ GenericIOError(t)}}
 
   private def toFile(pathSpec:AbsolutePathSpec):File = pathSpec match {

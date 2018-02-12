@@ -1,12 +1,14 @@
 package net.jackadull.dirish.migration
 
+import java.io.IOException
+
 import net.jackadull.dirish.io.IODSL._
 import net.jackadull.dirish.io.LogCategory.{BeforeChange, FailedChange, PerformedChange}
 import net.jackadull.dirish.io._
 import net.jackadull.dirish.migration.Migration.MigrationResult
 import net.jackadull.dirish.migration.MigrationStep.PartialStageResult
 import net.jackadull.dirish.model._
-import net.jackadull.dirish.path.AbsolutePathSpec
+import net.jackadull.dirish.path.{AbsolutePathBase, AbsolutePathSpec, CompositeAbsolutePathSpec}
 
 import scala.language.postfixOps
 
@@ -20,7 +22,7 @@ trait MigrationStep {
           successes = Set(change),
           unskippedFromUpstream = (state changesSkippedForDownstream) filter (includesSkippedUpstreamChange(_, state))
         )))
-        case Left(error) ⇒ addLogFailure(state, internalResult, IOBind(PartialStageResult(failures = Set(change))), error)
+        case Left(error) ⇒ addLogFailure(state, internalResult, IOBind(PartialStageResult(failures = Set(change→error))), error)
       }}
     }
 
@@ -57,11 +59,11 @@ object MigrationStep {
   def applyInSequence(steps:Traversable[MigrationStep], previous:IOOp[MigrationResult]):IOOp[MigrationResult] =
     steps.foldLeft(previous) {(prev,step) ⇒ prev flatMap {state ⇒ step(state) map {partialResult ⇒ partialResult.applyTo(state)}}}
 
-  final case class PartialStageResult(successes:Set[ConfigChangeSpec]=Set(), failures:Set[ConfigChangeSpec]=Set(), skipped:Set[ConfigChangeSpec]=Set(), unskippedFromUpstream:Set[ConfigChangeSpec]=Set()) {
+  final case class PartialStageResult(successes:Set[ConfigChangeSpec]=Set(), failures:Set[(ConfigChangeSpec,IOError)]=Set(), skipped:Set[ConfigChangeSpec]=Set(), unskippedFromUpstream:Set[ConfigChangeSpec]=Set()) {
     def applyTo(result:MigrationResult):MigrationResult = {
       val withUnskippedFromUpstream = unskippedFromUpstream.foldLeft(result)(_ performedImplicitlySkippedUpstreamChange _)
       val withSuccesses = successes.foldLeft(withUnskippedFromUpstream)(_ performedChange _)
-      val withFailures = failures.foldLeft(withSuccesses)(_ failedChange _)
+      val withFailures = failures.foldLeft(withSuccesses)((b,t) ⇒ b failedChange (t _1, t _2))
       val withSkipped = skipped.foldLeft(withFailures)(_ notPerformingChangeTransitive _)
       withSkipped
     }
@@ -96,8 +98,24 @@ final case class AddGitModuleStep(change:GitModuleAddedSpec) extends MigrationSt
     s"project ${change projectID} into ${state absoluteProjectPath (change projectID)}"
   override protected def logPrefixForBefore(state:MigrationResult):Option[String] = Some("Cloning")
   protected def logPrefixForFailure(state:MigrationResult, result:CloneGitModuleResult):String = "Failed to clone"
-  protected def mainOp(state:MigrationResult):IOOp[CloneGitModuleResult] =
-    CloneGitModule(state absoluteProjectPath (change projectID), change.firstRemote _1, change.firstRemote _2)
+  protected def mainOp(state:MigrationResult):IOOp[CloneGitModuleResult] = {
+    val path = state.absoluteProjectPath(change projectID)
+    val cloneOp = CloneGitModule(path, change.firstRemote _1, change.firstRemote _2)
+    path match {
+      case CompositeAbsolutePathSpec(parent, _) ⇒ GetFileInfo(parent) flatMap {
+        case FileInfoResult(_:NonExistingFileInfo) ⇒ CreateDirectory(parent) flatMap {
+          case IOSuccess ⇒ cloneOp
+          case err:GenericIOError ⇒ IOBind(err)
+          case NonDirectoryFileExistsAtGivenPath ⇒ IOBind(GenericIOError(new IOException(s"Cannot clone into a path below $parent, as a non-directory exists there.")))
+          case DirectoryNotCreated ⇒ IOBind(GenericIOError(new IOException(s"Cannot create directory: $parent")))
+        }
+        case FileInfoResult(_:DirectoryFileInfo) ⇒ cloneOp
+        case err:GenericIOError ⇒ IOBind(err)
+        case _ ⇒ cloneOp
+      }
+      case _:AbsolutePathBase ⇒ cloneOp
+    }
+  }
 }
 
 final case class AddProjectStep(change:ProjectAddedSpec) extends MigrationStep { // TODO create directory, maybe?
@@ -127,14 +145,28 @@ final case class MoveBaseDirectoryStep(change:BaseDirectoryMovedSpec) extends Mi
   protected def mainOp(state:MigrationResult) = MoveFile(change from, change to)
 }
 
-// TODO create 'to' parent directories?
 // TODO remove empty 'from' parents
 final case class MoveProjectStep(change:ProjectMovedSpec) extends MigrationStep {
   type InternalResult = MoveFileResult
   protected def logCommonSuffix(state:MigrationResult) = s"project ${change id} from ${state.baseDirectoryPath(change.from.baseDirectoryID)/change.from.localPath} to ${state.baseDirectoryPath(change.to.baseDirectoryID)/change.to.localPath}"
   protected def logPrefixForFailure(state:MigrationResult, result:MoveFileResult) = "Failed to move"
   override protected def logPrefixForSuccess(state:MigrationResult, result:MoveFileResult) = Some("Moved")
-  protected def mainOp(state:MigrationResult) = MoveFile(state.baseDirectoryPath(change.from.baseDirectoryID)/change.from.localPath, state.baseDirectoryPath(change.to.baseDirectoryID)/change.to.localPath)
+  protected def mainOp(state:MigrationResult) = {
+    val targetDirectory = state.baseDirectoryPath(change.to.baseDirectoryID) / change.to.localPath
+    val moveOp = MoveFile(state.baseDirectoryPath(change.from.baseDirectoryID)/change.from.localPath, targetDirectory)
+    targetDirectory match {
+      case CompositeAbsolutePathSpec(targetParent, _) ⇒ GetFileInfo(targetParent) flatMap {
+        case FileInfoResult(DirectoryFileInfo(_)) ⇒ moveOp
+        case FileInfoResult(NonExistingFileInfo(_)) ⇒ CreateDirectory(targetParent) flatMap {
+          case IOSuccess ⇒ moveOp
+          case err:IOError ⇒ IOBind(GenericIOError(new IOException(s"Cannot create parent directory of move target '$targetDirectory': $err")))
+        }
+        case FileInfoResult(unexpected) ⇒ IOBind(GenericIOError(new IOException(s"Expected directory or nothing at move target parent '$targetParent', but found: $unexpected")))
+        case _:IOError ⇒ moveOp
+      }
+      case _ ⇒ moveOp
+    }
+  }
 }
 
 final case class RemoveBaseDirectoryStep(change:BaseDirectoryRemovedSpec) extends MigrationStep {

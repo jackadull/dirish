@@ -1,6 +1,8 @@
 package net.jackadull.dirish.io
 
-import net.jackadull.dirish.path.AbsolutePathSpec
+import java.nio.charset.Charset
+
+import net.jackadull.dirish.path.{AbsolutePathSpec, UserHomePathSpec}
 
 import scala.language.higherKinds
 
@@ -22,14 +24,18 @@ trait IO[I[+_]] {
   def addGitModuleRemote(gitModulePath:AbsolutePathSpec, remoteName:String, remoteURI:String):I[AddGitModuleRemoteResult]
   def cloneGitModule(gitModulePath:AbsolutePathSpec, remoteName:String, remoteURI:String):I[CloneGitModuleResult]
   def createDirectory(directoryPath:AbsolutePathSpec):I[CreateDirectoryResult]
+  def createLockFile(path:AbsolutePathSpec):I[CreateLockFileResult]
   def getFileInfo(path:AbsolutePathSpec):I[GetFileInfoResult]
   def hasLocalGitChanges(gitModulePath:AbsolutePathSpec):I[HasLocalGitChangesResult]
   def listDirectoryContents(directoryPath:AbsolutePathSpec):I[ListDirectoryContentsResult]
   def log(category:LogCategory, message:String, throwableOpt:Option[Throwable]=None):I[LogResult]
   def moveFile(sourcePath:AbsolutePathSpec, targetPath:AbsolutePathSpec):I[MoveFileResult]
   def moveToTrash(path:AbsolutePathSpec):I[MoveToTrashResult]
+  def readFileAsString(path:AbsolutePathSpec, charset:Charset):I[ReadFileAsStringResult]
+  def removeFile(path:AbsolutePathSpec):I[RemoveFileResult]
   def removeGitModule(gitModulePath:AbsolutePathSpec):I[RemoveGitModuleResult]
   def removeGitModuleRemote(gitModulePath:AbsolutePathSpec, remoteName:String):I[RemoveGitModuleRemoteResult]
+  def saveStringToFile(path:AbsolutePathSpec, contents:String, charset:Charset):I[SaveStringToFileResult]
 
   def isDirectoryEmptyEnoughAsMoveTarget(directoryPath:AbsolutePathSpec):I[IsDirectoryEmptyEnoughAsMoveTargetResult] =
     map(isDirectoryEmptyEnoughForRemoving(directoryPath)) {case r:BooleanIOResult ⇒ r; case r:GenericIOError ⇒ r}
@@ -54,4 +60,10 @@ trait IO[I[+_]] {
       case FileInfoResult(_) ⇒ bind(BooleanIOResult(false))
       case err:GenericIOError ⇒ bind(err)
     }
+  def parameterValue[A](parameter:IOParameter[A]):I[A] = parameter match {
+    case p@ApplicationDataDirectoryPath ⇒ bind(p ev UserHomePathSpec/".dirish")
+    case p@InternalDBFilePath ⇒ map(parameterValue(ApplicationDataDirectoryPath))(dd ⇒ p ev (dd/"internal_db.dirish"))
+    case p@LockFilePath ⇒ map(parameterValue(ApplicationDataDirectoryPath))(dd ⇒ p ev (dd/"lockfile"))
+    case p@UserConfigPath ⇒ map(parameterValue(ApplicationDataDirectoryPath))(dd ⇒ p ev (dd/"config.dirish"))
+  }
 }
