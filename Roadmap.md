@@ -1,5 +1,6 @@
 # Roadmap #
 
+* Check for deviations between config and reality
 * Better test coverage
 * Ensure that empty directories get removed
 * Detect circular/linear dependencies in _move_ type changes
