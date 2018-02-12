@@ -3,6 +3,7 @@
 * Check for deviations between config and reality
 * Better test coverage
 * Ensure that empty directories get removed
+* IntelliJ IDEA recent project paths update
 * Detect circular/linear dependencies in _move_ type changes
 * Update (pull/fetch) all Git modules
 * Conditionals: skip certain steps when a certain condition is not true
