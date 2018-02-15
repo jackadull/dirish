@@ -1,12 +1,12 @@
 # Roadmap #
 
+* Add a new flag 'can connect to host:port within x' because 'host x is reachable' does not suffice for VPN detection
 * Check for deviations between config and reality
 * Better test coverage
 * Ensure that empty directories get removed
 * IntelliJ IDEA recent project paths update
 * Detect circular/linear dependencies in _move_ type changes
 * Update (pull/fetch) all Git modules
-* Conditionals: skip certain steps when a certain condition is not true
 * Continuous background process (daemon?)
   * See also:
     * [Creating Launch Daemons and Agents](https://developer.apple.com/library/content/documentation/MacOSX/Conceptual/BPSystemStartup/Chapters/CreatingLaunchdJobs.html)

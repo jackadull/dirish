@@ -50,6 +50,7 @@ class ProjectConfigTest extends FreeSpec with Matchers {
     case s:ConfigChangeStages ⇒ allChanges(s nextStage)
     case s:GitModuleRemotesRemovedStage ⇒ s.gitModuleRemotesRemoved.toSeq ++ allChanges(s nextStage)
     case s:GitModulesRemovedStage ⇒ s.gitModulesRemoved.toSeq ++ allChanges(s nextStage)
+    case s:ProjectActiveFlagsRemovedStage ⇒ s.projectActiveFlagsRemoved.toSeq ++ allChanges(s nextStage)
     case s:ProjectsRemovedStage ⇒ s.projectsRemoved.toSeq ++ allChanges(s nextStage)
     case s:BaseDirectoriesRemovedStage ⇒ s.baseDirectoriesRemoved.toSeq ++ allChanges(s nextStage)
     case s:GitModuleFirstRemotesChangedStage ⇒ s.gitModuleFirstRemotesChanged.toSeq ++ allChanges(s nextStage)
@@ -57,6 +58,7 @@ class ProjectConfigTest extends FreeSpec with Matchers {
     case s:BaseDirectoriesMovedStage ⇒ s.baseDirectoriesMoved.toSeq ++ allChanges(s nextStage)
     case s:BaseDirectoriesAddedStage ⇒ s.baseDirectoriesAdded.toSeq ++ allChanges(s nextStage)
     case s:ProjectsAddedStage ⇒ s.projectsAdded.toSeq ++ allChanges(s nextStage)
+    case s:ProjectActiveFlagsAddedStage ⇒ s.projectActiveFlagsAdded.toSeq ++ allChanges(s nextStage)
     case s:GitModulesAddedStage ⇒ s.gitModulesAdded.toSeq ++ allChanges(s nextStage)
     case s:GitModuleRemotesAddedStage ⇒ s.gitModuleRemotesAdded.toSeq
   }

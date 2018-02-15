@@ -2,6 +2,7 @@ package net.jackadull.dirish.io
 
 import java.nio.charset.Charset
 
+import net.jackadull.dirish.io.flags.IOFlag
 import net.jackadull.dirish.path.AbsolutePathSpec
 
 import scala.language.{higherKinds, postfixOps}
@@ -47,6 +48,9 @@ object IODSL {
   }
   final case class GetFileInfo(path:AbsolutePathSpec) extends IOOp[GetFileInfoResult] {
     def instantiate[I[+_]](io:IO[I]):I[GetFileInfoResult] = io getFileInfo path
+  }
+  final case class GetFlagStatus(flag:IOFlag) extends IOOp[GetFlagStatusResult] {
+    def instantiate[I[+_]](io:IO[I]):I[GetFlagStatusResult] = io getFlagStatus flag
   }
   final case class HasLocalGitChanges(gitModulePath:AbsolutePathSpec) extends IOOp[HasLocalGitChangesResult] {
     def instantiate[I[+_]](io:IO[I]):I[HasLocalGitChangesResult] = io hasLocalGitChanges gitModulePath

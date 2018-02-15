@@ -3,8 +3,9 @@ package net.jackadull.dirish.migration
 import java.io.IOException
 
 import net.jackadull.dirish.io.IODSL._
-import net.jackadull.dirish.io.LogCategory.{BeforeChange, FailedChange, PerformedChange}
+import net.jackadull.dirish.io.LogCategory.{BeforeChange, FailedChange, PerformedChange, SkippedChangeBecauseNotAllFlagsAreUp}
 import net.jackadull.dirish.io._
+import net.jackadull.dirish.io.flags.IOFlag
 import net.jackadull.dirish.migration.Migration.MigrationResult
 import net.jackadull.dirish.migration.MigrationStep.PartialStageResult
 import net.jackadull.dirish.model._
@@ -15,33 +16,49 @@ import scala.language.postfixOps
 trait MigrationStep {
   def apply(state:MigrationResult):IOOp[PartialStageResult] =
     if(Migration.shouldNotPerformTransitively(change, state changesNotPerformed)) IOBind(PartialStageResult(skipped=Set(change)))
-    else {
-      val main:IOOp[InternalResult] = maybeLogBefore(state, mainOp(state))
-      main flatMap {internalResult ⇒ interpretResult(internalResult) match {
-        case Right(()) ⇒ maybeLogSuccess(state, internalResult, IOBind(PartialStageResult(
-          successes = Set(change),
-          unskippedFromUpstream = (state changesSkippedForDownstream) filter (includesSkippedUpstreamChange(_, state))
-        )))
-        case Left(error) ⇒ addLogFailure(state, internalResult, IOBind(PartialStageResult(failures = Set(change→error))), error)
-      }}
+    else checkFlags(state) flatMap {
+      case BooleanIOResult(true) ⇒
+        val main:IOOp[InternalResult] = maybeLogBefore(state, mainOp(state))
+        main flatMap {internalResult ⇒ interpretResult(internalResult) match {
+          case Right(()) ⇒ maybeLogSuccess(state, internalResult, IOBind(PartialStageResult(
+            successes = Set(change),
+            unskippedFromUpstream = (state changesSkippedForDownstream) filter (includesSkippedUpstreamChange(_, state))
+          )))
+          case Left(error) ⇒ addLogFailure(state, IOBind(PartialStageResult(failures = Set(change→error))), error)
+        }}
+      case BooleanIOResult(false) ⇒
+        addLogSkippedBecauseNotAllFlagsAreUp(state, IOBind(PartialStageResult(skippedBecauseNotAllFlagsAreUp=Set(change))))
+      case err:IOError ⇒
+        addLogFailure(state, IOBind(PartialStageResult(failures=Set(change→err))), err)
     }
 
   type InternalResult
   def change:ConfigChangeSpec
   protected def logCommonSuffix(state:MigrationResult):String
   protected def logPrefixForBefore(state:MigrationResult):Option[String] = None
-  protected def logPrefixForFailure(state:MigrationResult, result:InternalResult):String
+  protected def logPrefixForFailure(state:MigrationResult):String
+  protected def logPrefixForSkipped(state:MigrationResult):String
   protected def logPrefixForSuccess(state:MigrationResult, result:InternalResult):Option[String] = None
   protected def mainOp(state:MigrationResult):IOOp[InternalResult]
 
+  protected def checkFlags(state:MigrationResult):IOOp[GetFlagStatusResult] =
+    flags(state).foldLeft[IOOp[GetFlagStatusResult]](IOBind(BooleanIOResult(true))) {(op, flag) ⇒ op flatMap {
+      case BooleanIOResult(true) ⇒ GetFlagStatus(flag)
+      case res@BooleanIOResult(false) ⇒ IOBind(res)
+      case err:GenericIOError ⇒ IOBind(err)
+    }}
+  protected def flags(state:MigrationResult):Traversable[IOFlag] = Seq()
   protected def interpretResult(result:InternalResult):Either[IOError,Unit] = result match {
     case ioError:IOError ⇒ Left(ioError)
     case _ ⇒ Right(())
   }
   protected def includesSkippedUpstreamChange(skipped:ConfigChangeSpec, state:MigrationResult):Boolean = false
+  protected def logSuffixForFlagsNotUp:String = "because not all flags are up"
 
-  protected def addLogFailure[A](state:MigrationResult, result:InternalResult, op:IOOp[A], error:IOError):IOOp[A] =
-    Log(FailedChange, s"${logPrefixForFailure(state, result)} ${logCommonSuffix(state)}${if(error.throwableOpt isDefined) "." else s": $error"}", error.throwableOpt) flatMap {_ ⇒ op}
+  protected def addLogFailure[A](state:MigrationResult, op:IOOp[A], error:IOError):IOOp[A] =
+    Log(FailedChange, s"${logPrefixForFailure(state)} ${logCommonSuffix(state)}${if(error.throwableOpt isDefined) "." else s": $error"}", error.throwableOpt) flatMap {_ ⇒ op}
+  protected def addLogSkippedBecauseNotAllFlagsAreUp[A](state:MigrationResult, op:IOOp[A]):IOOp[A] =
+    Log(SkippedChangeBecauseNotAllFlagsAreUp, s"${logPrefixForSkipped(state)} ${logCommonSuffix(state)} $logSuffixForFlagsNotUp.") flatMap {_ ⇒ op}
   protected def maybeLogBefore[A](state:MigrationResult, op:IOOp[A]):IOOp[A] = logPrefixForBefore(state) match {
     case None ⇒ op
     case Some(prefix) ⇒ Log(BeforeChange, s"$prefix ${logCommonSuffix(state)}.") flatMap {_ ⇒ op}
@@ -59,24 +76,27 @@ object MigrationStep {
   def applyInSequence(steps:Traversable[MigrationStep], previous:IOOp[MigrationResult]):IOOp[MigrationResult] =
     steps.foldLeft(previous) {(prev,step) ⇒ prev flatMap {state ⇒ step(state) map {partialResult ⇒ partialResult.applyTo(state)}}}
 
-  final case class PartialStageResult(successes:Set[ConfigChangeSpec]=Set(), failures:Set[(ConfigChangeSpec,IOError)]=Set(), skipped:Set[ConfigChangeSpec]=Set(), unskippedFromUpstream:Set[ConfigChangeSpec]=Set()) {
+  final case class PartialStageResult(successes:Set[ConfigChangeSpec]=Set(), failures:Set[(ConfigChangeSpec,IOError)]=Set(), skipped:Set[ConfigChangeSpec]=Set(), unskippedFromUpstream:Set[ConfigChangeSpec]=Set(), skippedBecauseNotAllFlagsAreUp:Set[ConfigChangeSpec]=Set()) {
     def applyTo(result:MigrationResult):MigrationResult = {
       val withUnskippedFromUpstream = unskippedFromUpstream.foldLeft(result)(_ performedImplicitlySkippedUpstreamChange _)
       val withSuccesses = successes.foldLeft(withUnskippedFromUpstream)(_ performedChange _)
       val withFailures = failures.foldLeft(withSuccesses)((b,t) ⇒ b failedChange (t _1, t _2))
       val withSkipped = skipped.foldLeft(withFailures)(_ notPerformingChangeTransitive _)
-      withSkipped
+      val withSkippedBecauseFlags = skippedBecauseNotAllFlagsAreUp.foldLeft(withSkipped)(_ skippedBecauseNotAllFlagsAreUp _)
+      withSkippedBecauseFlags
     }
     def ++(that:PartialStageResult):PartialStageResult = copy(successes=this.successes++that.successes,
       failures=this.failures++that.failures, skipped=this.skipped++that.skipped,
-      unskippedFromUpstream=this.unskippedFromUpstream++that.unskippedFromUpstream)
+      unskippedFromUpstream=this.unskippedFromUpstream++that.unskippedFromUpstream,
+      skippedBecauseNotAllFlagsAreUp=this.skippedBecauseNotAllFlagsAreUp++that.skippedBecauseNotAllFlagsAreUp)
   }
 }
 
 final case class AddBaseDirectoryStep(change:BaseDirectoryAddedSpec) extends MigrationStep {
   type InternalResult = CreateDirectoryResult
   protected def logCommonSuffix(state:MigrationResult):String = s"base directory ${change id} at ${change path}"
-  protected def logPrefixForFailure(state:MigrationResult, result:CreateDirectoryResult):String = "Failed to add"
+  protected def logPrefixForFailure(state:MigrationResult):String = "Failed to add"
+  protected def logPrefixForSkipped(state:MigrationResult):String = "Skipped adding"
   override protected def logPrefixForSuccess(state:MigrationResult, result:CreateDirectoryResult):Option[String] = Some("Added")
   protected def mainOp(state:MigrationResult):IOOp[CreateDirectoryResult] = CreateDirectory(change path)
 }
@@ -85,7 +105,8 @@ final case class AddGitModuleRemoteStep(change:GitModuleRemoteAddedSpec) extends
   type InternalResult = AddGitModuleRemoteResult
   protected def logCommonSuffix(state:MigrationResult):String =
     s"Git remote '${change.remote _1}' to ${state absoluteProjectPath (change projectID)}"
-  protected def logPrefixForFailure(state:MigrationResult, result:AddGitModuleRemoteResult):String = "Failed to add"
+  protected def logPrefixForFailure(state:MigrationResult):String = "Failed to add"
+  protected def logPrefixForSkipped(state:MigrationResult):String = "Skipped adding"
   override protected def logPrefixForSuccess(state:MigrationResult, result:AddGitModuleRemoteResult):Option[String] =
     Some("Added")
   protected def mainOp(state:MigrationResult):IOOp[AddGitModuleRemoteResult] =
@@ -97,7 +118,9 @@ final case class AddGitModuleStep(change:GitModuleAddedSpec) extends MigrationSt
   protected def logCommonSuffix(state:MigrationResult):String =
     s"project ${change projectID} into ${state absoluteProjectPath (change projectID)}"
   override protected def logPrefixForBefore(state:MigrationResult):Option[String] = Some("Cloning")
-  protected def logPrefixForFailure(state:MigrationResult, result:CloneGitModuleResult):String = "Failed to clone"
+  protected def logPrefixForFailure(state:MigrationResult):String = "Failed to clone"
+  protected def logPrefixForSkipped(state:MigrationResult):String = "Skipped cloning"
+  override protected def flags(state:MigrationResult) = state.state.activeFlagsOfProject(change projectID)
   protected def mainOp(state:MigrationResult):IOOp[CloneGitModuleResult] = {
     val path = state.absoluteProjectPath(change projectID)
     val cloneOp = CloneGitModule(path, change.firstRemote _1, change.firstRemote _2)
@@ -118,10 +141,20 @@ final case class AddGitModuleStep(change:GitModuleAddedSpec) extends MigrationSt
   }
 }
 
+final case class AddProjectActiveFlagStep(change:ProjectActiveFlagAddedSpec) extends MigrationStep {
+  type InternalResult = IOResult
+  protected def logCommonSuffix(state:MigrationResult) = s"project active flag for project ${change projectID} at ${state absoluteProjectPath (change projectID)}"
+  protected def logPrefixForFailure(state:MigrationResult) = "Failed to add"
+  protected def logPrefixForSkipped(state:MigrationResult) = "Skipped adding"
+  override protected def logPrefixForSuccess(state:MigrationResult, result:IOResult) = Some("Added")
+  protected def mainOp(state:MigrationResult) = IOBind(IOSuccess)
+}
+
 final case class AddProjectStep(change:ProjectAddedSpec) extends MigrationStep { // TODO create directory, maybe?
   type InternalResult = IOResult
   protected def logCommonSuffix(state:MigrationResult):String = s"project ${change id} at ${state.baseDirectoryPath(change.location.baseDirectoryID)/change.location.localPath}"
-  protected def logPrefixForFailure(state:MigrationResult, result:IOResult):String = "Failed to add"
+  protected def logPrefixForFailure(state:MigrationResult):String = "Failed to add"
+  protected def logPrefixForSkipped(state:MigrationResult) = "Skipped adding"
   override protected def logPrefixForSuccess(state:MigrationResult, result:IOResult) = Some("Added")
   protected def mainOp(state:MigrationResult):IOOp[IOResult] = IOBind(IOSuccess)
 }
@@ -129,7 +162,8 @@ final case class AddProjectStep(change:ProjectAddedSpec) extends MigrationStep {
 final case class ChangeGitModuleFirstRemoteStep(change:GitModuleFirstRemoteChangedSpec) extends MigrationStep {
   type InternalResult = IOResult
   protected def logCommonSuffix(state:MigrationResult) = s"first remote of project ${change projectID} at ${state absoluteProjectPath (change projectID)}"
-  protected def logPrefixForFailure(state:MigrationResult, result:IOResult) = "Failed to change"
+  protected def logPrefixForFailure(state:MigrationResult) = "Failed to change"
+  protected def logPrefixForSkipped(state:MigrationResult) = "Skipped chaning"
   override protected def logPrefixForSuccess(state:MigrationResult, result:IOResult) = Some("Changed")
   protected def mainOp(state:MigrationResult) = IOSeq(Seq(
     RemoveGitModuleRemote(state absoluteProjectPath (change projectID), state firstRemoteNameOfProject (change projectID)),
@@ -140,7 +174,8 @@ final case class ChangeGitModuleFirstRemoteStep(change:GitModuleFirstRemoteChang
 final case class MoveBaseDirectoryStep(change:BaseDirectoryMovedSpec) extends MigrationStep {
   type InternalResult = MoveFileResult
   protected def logCommonSuffix(state:MigrationResult) = s"base directory ${change id} from ${change from} to ${change to}"
-  protected def logPrefixForFailure(state:MigrationResult, result:MoveFileResult) = "Failed to move"
+  protected def logPrefixForFailure(state:MigrationResult) = "Failed to move"
+  protected def logPrefixForSkipped(state:MigrationResult) = "Skipped moving"
   override protected def logPrefixForSuccess(state:MigrationResult, result:MoveFileResult) = Some("Moved")
   protected def mainOp(state:MigrationResult) = MoveFile(change from, change to)
 }
@@ -149,7 +184,8 @@ final case class MoveBaseDirectoryStep(change:BaseDirectoryMovedSpec) extends Mi
 final case class MoveProjectStep(change:ProjectMovedSpec) extends MigrationStep {
   type InternalResult = MoveFileResult
   protected def logCommonSuffix(state:MigrationResult) = s"project ${change id} from ${state.baseDirectoryPath(change.from.baseDirectoryID)/change.from.localPath} to ${state.baseDirectoryPath(change.to.baseDirectoryID)/change.to.localPath}"
-  protected def logPrefixForFailure(state:MigrationResult, result:MoveFileResult) = "Failed to move"
+  protected def logPrefixForFailure(state:MigrationResult) = "Failed to move"
+  protected def logPrefixForSkipped(state:MigrationResult) = "Skipped moving"
   override protected def logPrefixForSuccess(state:MigrationResult, result:MoveFileResult) = Some("Moved")
   protected def mainOp(state:MigrationResult) = {
     val targetDirectory = state.baseDirectoryPath(change.to.baseDirectoryID) / change.to.localPath
@@ -178,7 +214,8 @@ final case class RemoveBaseDirectoryStep(change:BaseDirectoryRemovedSpec) extend
     case _ ⇒ false
   }
   protected def logCommonSuffix(state:MigrationResult) = s"base directory ${change id} at ${change path} to trash"
-  protected def logPrefixForFailure(state:MigrationResult, result:IOResult) = "Failed to move"
+  protected def logPrefixForFailure(state:MigrationResult) = "Failed to move"
+  protected def logPrefixForSkipped(state:MigrationResult) = "Skipped moving"
   override protected def logPrefixForSuccess(state:MigrationResult, result:IOResult) = Some("Moved")
   protected def mainOp(state:MigrationResult) = GetFileInfo(change path) flatMap {
     case FileInfoResult(_:NonExistingFileInfo) ⇒ IOBind(IOSuccess)
@@ -245,7 +282,8 @@ final case class RemoveBaseDirectoryStep(change:BaseDirectoryRemovedSpec) extend
 final case class RemoveGitModuleRemoteStep(change:GitModuleRemoteRemovedSpec) extends MigrationStep {
   type InternalResult = RemoveGitModuleRemoteResult
   protected def logCommonSuffix(state:MigrationResult):String = s"Git remote '${change removedRemoteName}' from project ${change projectID} at ${state absoluteProjectPath (change projectID)}"
-  protected def logPrefixForFailure(state:MigrationResult, result:RemoveGitModuleRemoteResult):String = "Failed to remove"
+  protected def logPrefixForFailure(state:MigrationResult):String = "Failed to remove"
+  protected def logPrefixForSkipped(state:MigrationResult) = "Skipped removing"
   override protected def logPrefixForSuccess(state:MigrationResult, result:RemoveGitModuleRemoteResult):Option[String] = Some("Removed")
   protected def mainOp(state:MigrationResult):IOOp[RemoveGitModuleRemoteResult] = RemoveGitModuleRemote(state absoluteProjectPath (change projectID), change removedRemoteName)
 }
@@ -257,9 +295,19 @@ final case class RemoveGitModuleStep(change:GitModuleRemovedSpec) extends Migrat
     case _ ⇒ false
   }
   protected def logCommonSuffix(state:MigrationResult) = s"Git module of project ${change projectID} at ${state absoluteProjectPath (change projectID)}"
-  protected def logPrefixForFailure(state:MigrationResult, result:RemoveGitModuleResult) = "Failed to remove"
+  protected def logPrefixForFailure(state:MigrationResult) = "Failed to remove"
+  protected def logPrefixForSkipped(state:MigrationResult) = "Skipped removing"
   override protected def logPrefixForSuccess(state:MigrationResult, result:RemoveGitModuleResult) = Some("Removed")
   protected def mainOp(state:MigrationResult) = RemoveGitModule(state absoluteProjectPath (change projectID))
+}
+
+final case class RemoveProjectActiveFlagStep(change:ProjectActiveFlagRemovedSpec) extends MigrationStep {
+  type InternalResult = IOResult
+  protected def logCommonSuffix(state:MigrationResult) = s"active flag '${change flag}' from project ${change projectID} at ${state absoluteProjectPath (change projectID)}"
+  protected def logPrefixForFailure(state:MigrationResult) = "Failed to remove"
+  protected def logPrefixForSkipped(state:MigrationResult) = "Skipped removing"
+  override protected def logPrefixForSuccess(state:MigrationResult, result:IOResult) = Some("Removed")
+  protected def mainOp(state:MigrationResult) = IOBind(IOSuccess)
 }
 
 final case class RemoveProjectStep(change:ProjectRemovedSpec) extends MigrationStep {
@@ -267,10 +315,12 @@ final case class RemoveProjectStep(change:ProjectRemovedSpec) extends MigrationS
   override protected def includesSkippedUpstreamChange(skipped:ConfigChangeSpec, state:MigrationResult) = skipped match {
     case GitModuleRemoteRemovedSpec(pid, _) ⇒ pid == change.id
     case GitModuleRemovedSpec(pid) ⇒ pid == change.id
+    case ProjectActiveFlagRemovedSpec(pid, _) ⇒ pid == change.id
     case _ ⇒ false
   }
   protected def logCommonSuffix(state:MigrationResult) = s"project ${change id} at ${state absoluteProjectPath (change id)} to trash"
-  protected def logPrefixForFailure(state:MigrationResult, result:IOResult) = "Failed to move"
+  protected def logPrefixForFailure(state:MigrationResult) = "Failed to move"
+  protected def logPrefixForSkipped(state:MigrationResult) = "Skipped moving"
   override protected def logPrefixForSuccess(state:MigrationResult, result:IOResult) = Some("Moved")
   protected def mainOp(state:MigrationResult) =
     if(state.doesProjectHaveGitModule(change id)) HasLocalGitChanges(state absoluteProjectPath (change id)) flatMap {

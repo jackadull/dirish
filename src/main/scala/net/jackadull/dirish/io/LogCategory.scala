@@ -7,5 +7,6 @@ object LogCategory {
   object FailedChange extends LogCategory
   object NonCriticalExecutionFailure extends LogCategory
   object PerformedChange extends LogCategory
+  object SkippedChangeBecauseNotAllFlagsAreUp extends LogCategory
   object SkippedChangeForDownstreamChange extends LogCategory
 }

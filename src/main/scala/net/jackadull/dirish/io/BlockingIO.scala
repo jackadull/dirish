@@ -3,16 +3,20 @@ package net.jackadull.dirish.io
 import java.awt.Desktop
 import java.awt.Desktop.Action.MOVE_TO_TRASH
 import java.io.{File, FileInputStream, FileOutputStream, OutputStreamWriter}
+import java.net.InetAddress
 import java.nio.charset.Charset
 import java.nio.file._
 import java.util.logging.{Level, Logger}
 
 import net.jackadull.dirish.io.LogCategory._
+import net.jackadull.dirish.io.flags.{CachedIOFlag, IOFlag}
 import net.jackadull.dirish.path.{AbsolutePathSpec, CompositeAbsolutePathSpec, PathElementSpec, UserHomePathSpec}
 import org.eclipse.jgit.api.Git
 import org.eclipse.jgit.lib.BranchTrackingStatus
 import org.eclipse.jgit.transport.URIish
 
+import scala.concurrent.duration.Duration
+import scala.concurrent.{Await, Promise}
 import scala.language.postfixOps
 
 sealed abstract class BlockingV[+A] {
@@ -20,8 +24,59 @@ sealed abstract class BlockingV[+A] {
   protected def execute():A
 }
 
+private[io] class FlagCache {
+  private val mutex = new Object()
+  private var cachedValues:Map[IOFlag,(GetFlagStatusResult,Long)] = Map()
+  private var promises:Map[IOFlag,Promise[GetFlagStatusResult]] = Map()
+
+  def lookup(flag:IOFlag, io:BlockingIO):BlockingV[GetFlagStatusResult] = flag match {
+    case CachedIOFlag(uncached, ttl) ⇒ new BlockingV[GetFlagStatusResult] {
+      protected def execute() = {
+        val getResult:Either[(Promise[GetFlagStatusResult],Boolean),GetFlagStatusResult] = mutex synchronized {
+          cachedValues get uncached match {
+            case Some((result, resultWhen)) ⇒
+              val resultAgeMillis = System.currentTimeMillis() - resultWhen
+              if(ttl.toMillis > resultAgeMillis) {
+                promises get uncached match {
+                  case Some(promise) ⇒ Left(promise → true)
+                  case None ⇒
+                    val newPromise = Promise[GetFlagStatusResult]()
+                    promises = promises + (uncached → newPromise)
+                    Left(newPromise → false)
+                }
+              } else Right(result)
+            case None ⇒
+              promises get uncached match {
+                case Some(promise) ⇒ Left(promise → true)
+                case None ⇒
+                  val newPromise = Promise[GetFlagStatusResult]()
+                  promises = promises + (uncached → newPromise)
+                  Left(newPromise → false)
+              }
+          }
+        }
+        getResult match {
+          case Right(result) ⇒ result
+          case Left((promised, true)) ⇒ Await.result(promised future, Duration.Inf)
+          case Left((promised, false)) ⇒
+            val result = uncached.check(io).value
+            mutex synchronized {
+              cachedValues = cachedValues + (uncached → (result, System.currentTimeMillis()))
+              promises = promises - uncached
+            }
+            promised.success(result)
+            result
+        }
+      }
+    }
+    case _ ⇒ flag.check(io)
+  }
+}
+
 object BlockingIO extends BlockingIO(Option(System getProperty "user.home") get)
 class BlockingIO(userHomePath:String) extends IO[BlockingV] {
+  private val flagCache = new FlagCache
+
   def markForExecution[A](a:BlockingV[A]):BlockingV[Unit] = {a value; v({})}
 
   def aggregate[A,B](as:Traversable[BlockingV[A]])(z: ⇒B)(seqop:(B,A)⇒B, combop:(B,B)⇒B):BlockingV[B] =
@@ -75,6 +130,8 @@ class BlockingIO(userHomePath:String) extends IO[BlockingV] {
     )
   }
 
+  def getFlagStatus(flag:IOFlag):BlockingV[GetFlagStatusResult] = flagCache.lookup(flag, this)
+
   def hasLocalGitChanges(gitModulePath:AbsolutePathSpec):BlockingV[HasLocalGitChangesResult] = vtry {
     val file = toFile(gitModulePath)
     if(!(file exists())) FileNotFound
@@ -88,6 +145,10 @@ class BlockingIO(userHomePath:String) extends IO[BlockingV] {
         } else BooleanIOResult(true)
       } finally {git close()}
     }
+  }
+
+  def isHostReachable(host:String, timeoutMillis:Int):BlockingV[IsHostReachableResult] = vtry {
+    BooleanIOResult(InetAddress.getByName(host).isReachable(timeoutMillis))
   }
 
   def listDirectoryContents(directoryPath:AbsolutePathSpec):BlockingV[ListDirectoryContentsResult] = vtry {
@@ -108,6 +169,7 @@ class BlockingIO(userHomePath:String) extends IO[BlockingV] {
       case FailedChange ⇒ Level.SEVERE
       case NonCriticalExecutionFailure ⇒ Level.WARNING
       case PerformedChange ⇒ Level.INFO
+      case SkippedChangeBecauseNotAllFlagsAreUp ⇒ Level.INFO
       case SkippedChangeForDownstreamChange ⇒ Level.FINE
     }
     val logger = Logger.getLogger("blockingio")

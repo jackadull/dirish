@@ -2,6 +2,7 @@ package net.jackadull.dirish.model
 
 import java.util.UUID
 
+import net.jackadull.dirish.io.flags.IOFlag
 import net.jackadull.dirish.path.{AbsolutePathSpec, RelativePathSpec}
 
 import scala.language.postfixOps
@@ -32,6 +33,12 @@ final case class GitModuleRemoteRemovedSpec(projectID:UUID, removedRemoteName:St
 
 final case class GitModuleRemovedSpec(projectID:UUID) extends ConfigChangeSpec
 {def applyTo(config:ProjectConfig):Either[GitModuleRemoveError,ProjectConfig] = config removeGitModule projectID}
+
+final case class ProjectActiveFlagAddedSpec(projectID:UUID, flag:IOFlag) extends ConfigChangeSpec
+{def applyTo(config:ProjectConfig):Either[ProjectActiveFlagAddError,ProjectConfig] = config addProjectActiveFlag (projectID, flag)}
+
+final case class ProjectActiveFlagRemovedSpec(projectID:UUID, flag:IOFlag) extends ConfigChangeSpec
+{def applyTo(config:ProjectConfig):Either[ProjectActiveFlagRemoveError,ProjectConfig] = config removeProjectActiveFlag (projectID, flag)}
 
 final case class ProjectAddedSpec(id:UUID, location:ProjectLocationSpec) extends ConfigChangeSpec
 {def applyTo(config:ProjectConfig):Either[ProjectAddError,ProjectConfig] = config addProject (id, location baseDirectoryID, location localPath)}

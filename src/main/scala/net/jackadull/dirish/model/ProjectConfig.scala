@@ -2,11 +2,13 @@ package net.jackadull.dirish.model
 
 import java.util.UUID
 
+import net.jackadull.dirish.io.flags.IOFlag
 import net.jackadull.dirish.path.{AbsolutePathSpec, RelativePathSpec}
 
 import scala.language.postfixOps
 
 sealed trait ProjectConfig {
+  def activeFlagsOfProject(projectID:UUID):Set[IOFlag]
   def baseDirectoryIDs:Set[UUID]
   def baseDirectoryPath(baseDirectoryID:UUID):Option[AbsolutePathSpec]
   def projectAdditionalGitRemotes(projectID:UUID):Set[(String,String)]
@@ -19,6 +21,7 @@ sealed trait ProjectConfig {
   def addGitModule(projectID:UUID, firstRemote:(String,String)):Either[GitModuleAddError,ProjectConfig]
   def addGitModuleRemote(projectID:UUID, newRemote:(String,String)):Either[GitModuleAddRemoteError,ProjectConfig]
   def addProject(projectID:UUID, baseDirectoryID:UUID, localPath:RelativePathSpec):Either[ProjectAddError,ProjectConfig]
+  def addProjectActiveFlag(projectID:UUID, flag:IOFlag):Either[ProjectActiveFlagAddError,ProjectConfig]
   def changeGitModuleFirstRemote(projectID:UUID, newFirstRemote:(String,String)):Either[GitModuleChangeFirstRemoteError,ProjectConfig]
   def moveBaseDirectory(id:UUID, newPath:AbsolutePathSpec):Either[BaseDirectoryMoveError,ProjectConfig]
   def moveProject(id:UUID, newBaseDirectoryID:UUID, newLocalPath:RelativePathSpec):Either[ProjectMoveError,ProjectConfig]
@@ -26,6 +29,7 @@ sealed trait ProjectConfig {
   def removeGitModule(projectID:UUID):Either[GitModuleRemoveError,ProjectConfig]
   def removeGitModuleRemote(projectID:UUID, remoteName:String):Either[GitModuleRemoveRemoteError,ProjectConfig]
   def removeProject(projectID:UUID):Either[ProjectRemoveError,ProjectConfig]
+  def removeProjectActiveFlag(projectID:UUID, flag:IOFlag):Either[ProjectActiveFlagRemoveError,ProjectConfig]
 }
 object ProjectConfig {
   val empty:ProjectConfig = ProjectConfigData()
@@ -41,8 +45,14 @@ object ProjectConfig {
       data.gitModuleAdditionalRemotes.toSet flatMap {e:(UUID,Set[(String,String)])⇒
         e._2 map {e2:(String,String) ⇒ (e _1, e2 _1, e2 _2)}
       }
+    private def allProjectActiveFlags(data:ProjectConfigData):Set[(UUID,IOFlag)] =
+      data.projectActiveFlags.toSet flatMap {e:(UUID,Set[IOFlag])⇒
+        e._2 map {e2:IOFlag ⇒ (e _1, e2)}
+      }
     private lazy val fromAdditionalRemotes:Set[(UUID,String,String)] = allAdditionalRemotes(from)
+    private lazy val fromProjectActiveFlags:Set[(UUID,IOFlag)] = allProjectActiveFlags(from)
     private lazy val toAdditionalRemotes:Set[(UUID,String,String)] = allAdditionalRemotes(to)
+    private lazy val toProjectActiveFlags:Set[(UUID,IOFlag)] = allProjectActiveFlags(to)
 
     private trait StageImpl {
       lazy val baseDirectoriesAdded:Set[BaseDirectoryAddedSpec] =
@@ -61,6 +71,10 @@ object ProjectConfig {
         toGitModuleAddedSpecs(addedEntries(from gitModules, to gitModules))
       lazy val gitModulesRemoved:Set[GitModuleRemovedSpec] =
         toGitModuleRemovedSpecs(removedEntries(from gitModules, to gitModules) keySet)
+      lazy val projectActiveFlagsAdded:Set[ProjectActiveFlagAddedSpec] =
+        toProjectActiveFlagsAddedSpecs(toProjectActiveFlags -- fromProjectActiveFlags)
+      lazy val projectActiveFlagsRemoved:Set[ProjectActiveFlagRemovedSpec] =
+        toProjectActiveFlagsRemovedSpecs(fromProjectActiveFlags -- toProjectActiveFlags)
       lazy val projectsAdded:Set[ProjectAddedSpec] =
         toProjectAddedSpecs(addedEntries(from projects, to projects))
       lazy val projectsMoved:Set[ProjectMovedSpec] =
@@ -72,14 +86,16 @@ object ProjectConfig {
     private abstract class StageWithNext[A<:ConfigChangeStage](next: ⇒A) extends StageImpl {def nextStage:A = next}
 
     private object gitModuleRemotesRemovedStage extends StageWithNext(gitModulesRemovedStage) with GitModuleRemotesRemovedStage
-    private object gitModulesRemovedStage extends StageWithNext(projectsRemovedStage) with GitModulesRemovedStage
+    private object gitModulesRemovedStage extends StageWithNext(projectActiveFlagsRemovedStage) with GitModulesRemovedStage
+    private object projectActiveFlagsRemovedStage extends StageWithNext(projectsRemovedStage) with ProjectActiveFlagsRemovedStage
     private object projectsRemovedStage extends StageWithNext(baseDirectoriesRemovedStage) with ProjectsRemovedStage
     private object baseDirectoriesRemovedStage extends StageWithNext(gitModuleFirstRemotesChangedStage) with BaseDirectoriesRemovedStage
     private object gitModuleFirstRemotesChangedStage extends StageWithNext(projectsMovedStage) with GitModuleFirstRemotesChangedStage
     private object projectsMovedStage extends StageWithNext(baseDirectoriesMovedStage) with ProjectsMovedStage
     private object baseDirectoriesMovedStage extends StageWithNext(baseDirectoriesAddedStage) with BaseDirectoriesMovedStage
     private object baseDirectoriesAddedStage extends StageWithNext(projectsAddedStage) with BaseDirectoriesAddedStage
-    private object projectsAddedStage extends StageWithNext(gitModulesAddedStage) with ProjectsAddedStage
+    private object projectsAddedStage extends StageWithNext(projectActiveFlagsAddedStage) with ProjectsAddedStage
+    private object projectActiveFlagsAddedStage extends StageWithNext(gitModulesAddedStage) with ProjectActiveFlagsAddedStage
     private object gitModulesAddedStage extends StageWithNext(gitModuleRemotesAddedStage) with GitModulesAddedStage
     private object gitModuleRemotesAddedStage extends StageImpl with GitModuleRemotesAddedStage
   }
@@ -104,6 +120,10 @@ object ProjectConfig {
     entries.toSet map {e:(UUID,String,String) ⇒ GitModuleRemoteRemovedSpec(e _1, e _2)}
   private def toGitModuleRemovedSpecs(entries:Traversable[UUID]):Set[GitModuleRemovedSpec] =
     entries.toSet map {id:UUID ⇒ GitModuleRemovedSpec(id)}
+  private def toProjectActiveFlagsAddedSpecs(entries:Traversable[(UUID,IOFlag)]):Set[ProjectActiveFlagAddedSpec] =
+    entries.toSet map ProjectActiveFlagAddedSpec.tupled
+  private def toProjectActiveFlagsRemovedSpecs(entries:Traversable[(UUID,IOFlag)]):Set[ProjectActiveFlagRemovedSpec] =
+    entries.toSet map ProjectActiveFlagRemovedSpec.tupled
   private def toProjectAddedSpecs(entries:Traversable[(UUID,(UUID,RelativePathSpec))]):Set[ProjectAddedSpec] =
     entries.toSet map toProjectAddedSpec
   private def toProjectMovedSpecs(entries:Traversable[(UUID,((UUID,RelativePathSpec),(UUID,RelativePathSpec)))]):Set[ProjectMovedSpec] =
@@ -123,8 +143,10 @@ private final case class ProjectConfigData(
   baseDirectories:Map[UUID,AbsolutePathSpec] = Map(),
   gitModuleAdditionalRemotes:Map[UUID,Set[(String,String)]] = Map(),
   gitModules:Map[UUID,(String,String)] = Map(),
+  projectActiveFlags:Map[UUID,Set[IOFlag]] = Map(),
   projects:Map[UUID,(UUID,RelativePathSpec)] = Map()
 ) extends ProjectConfig {
+  def activeFlagsOfProject(projectID:UUID):Set[IOFlag] = projectActiveFlags.getOrElse(projectID, Set())
   def baseDirectoryIDs:Set[UUID] = baseDirectories keySet
   def baseDirectoryPath(baseDirectoryID:UUID):Option[AbsolutePathSpec] = baseDirectories.get(baseDirectoryID)
   def projectAdditionalGitRemotes(projectID:UUID):Set[(String,String)] = gitModuleAdditionalRemotes.getOrElse(projectID, Set())
@@ -169,6 +191,14 @@ private final case class ProjectConfigData(
     else if(projects.values exists {p ⇒ (p._1 == baseDirectoryID) && (p._2 == localPath)}) Left(ProjectWithSamePathAlreadyExists(projectID, baseDirectoryID, localPath))
     else if(projects.values exists {p ⇒ (p._1 == baseDirectoryID) && ((p._2 startsWith localPath) || (localPath startsWith p._2))}) Left(ProjectWithCrossingPathAlreadyExists(projectID, baseDirectoryID, localPath))
     else Right(copy(projects = projects + (projectID → (baseDirectoryID, localPath))))
+
+  def addProjectActiveFlag(projectID:UUID, flag:IOFlag) =
+    if(!(projects contains projectID)) Left(ProjectNotFoundForID(projectID))
+    else projectActiveFlags get projectID match {
+      case None ⇒ Right(copy(projectActiveFlags = projectActiveFlags + (projectID → Set(flag))))
+      case Some(containsFlag) if containsFlag(flag) ⇒ Left(ProjectActiveFlagAlreadyPresent(projectID, flag))
+      case Some(flags) ⇒ Right(copy(projectActiveFlags = projectActiveFlags + (projectID → (flags + flag))))
+    }
 
   def changeGitModuleFirstRemote(projectID:UUID, newFirstRemote:(String,String)) = gitModules get projectID match {
     case None ⇒
@@ -238,5 +268,14 @@ private final case class ProjectConfigData(
   def removeProject(projectID:UUID) =
     if(!(projects contains projectID)) Left(ProjectNotFoundForID(projectID))
     else if(gitModules contains projectID) Left(ProjectStillReferencedByGitModule(projectID))
+    else if(projectActiveFlags contains projectID) Left(ProjectStillReferencedByActiveFlag(projectID))
     else Right(copy(projects = projects - projectID))
+
+  def removeProjectActiveFlag(projectID:UUID, flag:IOFlag) =
+    if(!(projects contains projectID)) Left(ProjectNotFoundForID(projectID))
+    else projectActiveFlags get projectID match {
+      case Some(flags) if flags == Set(flag) ⇒ Right(copy(projectActiveFlags = projectActiveFlags - projectID))
+      case Some(flags) if flags(flag) ⇒ Right(copy(projectActiveFlags = projectActiveFlags + (projectID → (flags - flag))))
+      case _ ⇒ Left(ProjectActiveFlagNotFound(projectID, flag))
+    }
 }

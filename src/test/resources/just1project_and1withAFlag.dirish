@@ -1,0 +1,11 @@
+$HOME/p2: 7d7ea83f-33fd-43d8-a4bd-1199b8039ad1 {
+  prv/tool {
+    dirish: a2d26c54-9056-46fb-add6-c76334619bd1 {
+      git {origin ssh://git@foo.bar.com/prj/dirish.git}
+    }
+    conditional: 8c15ef21-7784-417a-9698-216270f06e81 {
+      git {origin ssh://git@foo.bar.com/prj/conditional.git}
+      active when {host foo.bar.com reachable within 3secs (cached for 10s)}
+    }
+  }
+}

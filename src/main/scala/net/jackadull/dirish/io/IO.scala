@@ -2,6 +2,7 @@ package net.jackadull.dirish.io
 
 import java.nio.charset.Charset
 
+import net.jackadull.dirish.io.flags.IOFlag
 import net.jackadull.dirish.path.{AbsolutePathSpec, UserHomePathSpec}
 
 import scala.language.higherKinds
@@ -26,7 +27,9 @@ trait IO[I[+_]] {
   def createDirectory(directoryPath:AbsolutePathSpec):I[CreateDirectoryResult]
   def createLockFile(path:AbsolutePathSpec):I[CreateLockFileResult]
   def getFileInfo(path:AbsolutePathSpec):I[GetFileInfoResult]
+  def getFlagStatus(flag:IOFlag):I[GetFlagStatusResult]
   def hasLocalGitChanges(gitModulePath:AbsolutePathSpec):I[HasLocalGitChangesResult]
+  def isHostReachable(host:String, timeoutMillis:Int):I[IsHostReachableResult]
   def listDirectoryContents(directoryPath:AbsolutePathSpec):I[ListDirectoryContentsResult]
   def log(category:LogCategory, message:String, throwableOpt:Option[Throwable]=None):I[LogResult]
   def moveFile(sourcePath:AbsolutePathSpec, targetPath:AbsolutePathSpec):I[MoveFileResult]

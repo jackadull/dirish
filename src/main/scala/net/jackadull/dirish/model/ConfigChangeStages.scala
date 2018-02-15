@@ -21,6 +21,12 @@ trait GitModuleRemotesRemovedStage extends ConfigChangeStageWithNextStage {
 }
 trait GitModulesRemovedStage extends ConfigChangeStageWithNextStage {
   def gitModulesRemoved:Set[GitModuleRemovedSpec]
+  override def nextStage:ProjectActiveFlagsRemovedStage
+  def willProjectBeRemoved(projectID:UUID):Boolean =
+    nextStage.willProjectBeRemoved(projectID)
+}
+trait ProjectActiveFlagsRemovedStage extends ConfigChangeStageWithNextStage {
+  def projectActiveFlagsRemoved:Set[ProjectActiveFlagRemovedSpec]
   override def nextStage:ProjectsRemovedStage
   def willProjectBeRemoved(projectID:UUID):Boolean =
     nextStage.projectsRemoved.exists(_.id==projectID)
@@ -53,6 +59,10 @@ trait BaseDirectoriesAddedStage extends ConfigChangeStageWithNextStage {
 }
 trait ProjectsAddedStage extends ConfigChangeStageWithNextStage {
   def projectsAdded:Set[ProjectAddedSpec]
+  override def nextStage:ProjectActiveFlagsAddedStage
+}
+trait ProjectActiveFlagsAddedStage extends ConfigChangeStageWithNextStage {
+  def projectActiveFlagsAdded:Set[ProjectActiveFlagAddedSpec]
   override def nextStage:GitModulesAddedStage
 }
 trait GitModulesAddedStage extends ConfigChangeStageWithNextStage {

@@ -34,6 +34,24 @@ class UpdateDirectoryStructureTest extends FreeSpec with Matchers {
     )
   }
 
+  "a project whose flags are not up does not get cloned" in {
+    val io = new TestIO
+    io.setHostReachable("foo.bar.com", reachable = false)
+    updateToConfig("just1project_and1withAFlag.dirish", io) should be (IOSuccess)
+    postConditions(io)(
+      normalPostUpdateConditions,
+      directoryExists(UserHomePathSpec/"p2"/"prv"/"tool"/"dirish"),
+      isGitRepository(UserHomePathSpec/"p2"/"prv"/"tool"/"dirish"),
+      fileDoesNotExist(UserHomePathSpec/"p2"/"prv"/"tool"/"conditional")
+    )
+    io.setHostReachable("foo.bar.com", reachable = false)
+    io.clearFlagCache()
+    updateToConfig("just1project_and1withAFlag.dirish", io) should be (IOSuccess)
+    postConditions(io)(
+      isGitRepository(UserHomePathSpec/"p2"/"prv"/"tool"/"conditional")
+    )
+  }
+
   private def directoryExists[I[+_]](path:AbsolutePathSpec):(IO[I]⇒I[()⇒Unit]) = {io ⇒ io.map(io getFileInfo path) {
     case FileInfoResult(DirectoryFileInfo(_)) ⇒ () ⇒ ()
     case unexpected ⇒ () ⇒ fail(s"expected directory at $path, but found: $unexpected")

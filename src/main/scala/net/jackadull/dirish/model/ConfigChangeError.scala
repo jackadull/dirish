@@ -2,6 +2,7 @@ package net.jackadull.dirish.model
 
 import java.util.UUID
 
+import net.jackadull.dirish.io.flags.IOFlag
 import net.jackadull.dirish.marshalling.ConfigSemanticError
 import net.jackadull.dirish.path.{AbsolutePathSpec, RelativePathSpec}
 
@@ -15,6 +16,8 @@ sealed trait GitModuleAddRemoteError extends ConfigChangeError
 sealed trait GitModuleChangeFirstRemoteError extends ConfigChangeError
 sealed trait GitModuleRemoveError extends ConfigChangeError
 sealed trait GitModuleRemoveRemoteError extends ConfigChangeError
+sealed trait ProjectActiveFlagAddError extends ConfigChangeError
+sealed trait ProjectActiveFlagRemoveError extends ConfigChangeError
 sealed trait ProjectAddError extends ConfigChangeError
 sealed trait ProjectMoveError extends ConfigChangeError
 sealed trait ProjectRemoveError extends ConfigChangeError
@@ -33,9 +36,12 @@ final case class GitModuleAlreadyHasFirstRemoteNamed(projectID:UUID, remoteName:
 final case class GitModuleNotFoundForProjectID(id:UUID) extends GitModuleAddRemoteError with GitModuleChangeFirstRemoteError with GitModuleRemoveError with GitModuleRemoveRemoteError
 final case class GitModuleRemoteNotFoundForName(projectID:UUID, remoteName:String) extends GitModuleRemoveRemoteError
 final case class GitModuleStillHasAdditionalRemotes(projectID:UUID) extends GitModuleRemoveError
+final case class ProjectActiveFlagAlreadyPresent(projectID:UUID, flag:IOFlag) extends ProjectActiveFlagAddError
+final case class ProjectActiveFlagNotFound(projectID:UUID, flag:IOFlag) extends ProjectActiveFlagRemoveError
 final case class ProjectAlreadyHasGitModule(id:UUID) extends GitModuleAddError
 final case class ProjectAlreadyHasPath(projectID:UUID, baseDirectoryID:UUID, localPath:RelativePathSpec) extends ProjectMoveError
-final case class ProjectNotFoundForID(id:UUID) extends GitModuleAddError with GitModuleAddRemoteError with GitModuleChangeFirstRemoteError with GitModuleRemoveError with GitModuleRemoveRemoteError with ProjectMoveError with ProjectRemoveError
+final case class ProjectNotFoundForID(id:UUID) extends GitModuleAddError with GitModuleAddRemoteError with GitModuleChangeFirstRemoteError with GitModuleRemoveError with GitModuleRemoveRemoteError with ProjectActiveFlagAddError with ProjectActiveFlagRemoveError with ProjectMoveError with ProjectRemoveError
+final case class ProjectStillReferencedByActiveFlag(id:UUID) extends ProjectRemoveError
 final case class ProjectStillReferencedByGitModule(id:UUID) extends ProjectRemoveError
 final case class ProjectWithCrossingPathAlreadyExists(projectID:UUID, baseDirectoryID:UUID, localPath:RelativePathSpec) extends ProjectAddError with ProjectMoveError
 final case class ProjectWithSameIDAlreadyExists(id:UUID) extends ProjectAddError

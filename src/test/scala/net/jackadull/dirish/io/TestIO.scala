@@ -3,6 +3,7 @@ import java.io.{FileNotFoundException, IOException}
 import java.nio.charset.Charset
 
 import net.jackadull.dirish.io.TestIO.{TestIODirectoryNode, TestIOFileNode, TestIOPlainFileNode}
+import net.jackadull.dirish.io.flags.{CachedIOFlag, IOFlag}
 import net.jackadull.dirish.path.{AbsolutePathSpec, CompositeAbsolutePathSpec, UserHomePathSpec}
 
 import scala.language.postfixOps
@@ -13,7 +14,10 @@ sealed trait TestIOV[+A] {
 }
 
 class TestIO extends IO[TestIOV] {
-  def logMessages:Seq[(LogCategory,String,Option[Throwable])] = mutex synchronized {_logMessages}
+  def clearFlagCache() {mutex synchronized {flagCache = Map()}}
+  def logMessages:Seq[(LogCategory,String,Option[Throwable])] = mutex synchronized _logMessages
+  def setHostReachable(host:String, reachable:Boolean) =
+    if(reachable) mutex synchronized {unreachableHosts -= host} else mutex synchronized {unreachableHosts += host}
 
   def markForExecution[A](a:TestIOV[A]):TestIOV[Unit] = {a value; v(())}
 
@@ -116,6 +120,17 @@ class TestIO extends IO[TestIOV] {
     case None ⇒ (None, FileInfoResult(NonExistingFileInfo(path)))
   }}
 
+  def getFlagStatus(flag:IOFlag):TestIOV[GetFlagStatusResult] = flag match {
+    case CachedIOFlag(uncached, _) ⇒ v {mutex.synchronized(flagCache get uncached) match {
+      case Some(result) ⇒ result
+      case None ⇒
+        val result = (flag check this).value
+        mutex.synchronized(flagCache += (uncached → result))
+        result
+    }}
+    case _ ⇒ flag check this
+  }
+
   def hasLocalGitChanges(gitModulePath:AbsolutePathSpec):TestIOV[HasLocalGitChangesResult] = v {visitFileNodeAt(gitModulePath) {
     case None ⇒ (None, FileNotFound)
     case Some(dir:TestIODirectoryNode) ⇒ dir gitRemotes match {
@@ -123,6 +138,10 @@ class TestIO extends IO[TestIOV] {
       case Some(_) ⇒ (None, BooleanIOResult((dir.children.keySet - ".git") nonEmpty))
     }
     case Some(_) ⇒ (None, GenericIOError(new IOException(s"not a directory: $gitModulePath")))
+  }}
+
+  def isHostReachable(host:String, timeoutMillis:Int):TestIOV[IsHostReachableResult] = v {mutex synchronized {
+    BooleanIOResult(!unreachableHosts(host))
   }}
 
   def listDirectoryContents(directoryPath:AbsolutePathSpec):TestIOV[ListDirectoryContentsResult] = v {visitFileNodeAt(directoryPath) {
@@ -238,8 +257,10 @@ class TestIO extends IO[TestIOV] {
   }
 
   private val mutex = new Object
+  private var flagCache:Map[IOFlag,GetFlagStatusResult] = Map()
   private var fsRoot:TestIOFileNode = TestIODirectoryNode()
   private var _logMessages:Seq[(LogCategory,String,Option[Throwable])] = Seq()
+  private var unreachableHosts:Set[String] = Set()
   private def v[A](f: ⇒A):TestIOV[A] = new TestIOV[A] {protected def execute() = f}
   private def visitFileNodeAt[A](location:AbsolutePathSpec)(f:Option[TestIOFileNode]⇒(Option[TestIOFileNode],A)):A = mutex synchronized {
     location match {

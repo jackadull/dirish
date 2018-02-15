@@ -11,9 +11,11 @@ sealed trait CloneGitModuleResult extends IOResult
 sealed trait CreateDirectoryResult extends IOResult
 sealed trait CreateLockFileResult extends IOResult
 sealed trait GetFileInfoResult extends IOResult
+sealed trait GetFlagStatusResult extends IOResult
 sealed trait HasLocalGitChangesResult extends IOResult
 sealed trait IsDirectoryEmptyEnoughAsMoveTargetResult extends IOResult
 sealed trait IsDirectoryEmptyEnoughForRemovingResult extends IOResult
+sealed trait IsHostReachableResult extends IOResult
 sealed trait ListDirectoryContentsResult extends IOResult
 sealed trait LogResult extends IOResult
 sealed trait MoveFileResult extends IOResult
@@ -29,18 +31,18 @@ final case class CustomIOError(message:String) extends IOError {
 }
 final case class GenericIOError(exception:Throwable) extends IOError with AddGitModuleRemoteResult
   with CloneGitModuleResult with CreateLockFileResult with CreateDirectoryResult with GetFileInfoResult
-  with HasLocalGitChangesResult with IsDirectoryEmptyEnoughAsMoveTargetResult
-  with IsDirectoryEmptyEnoughForRemovingResult with ListDirectoryContentsResult with MoveFileResult
-  with MoveToTrashResult with ReadFileAsStringResult with RemoveFileResult with RemoveGitModuleResult
-  with RemoveGitModuleRemoteResult with SaveStringToFileResult {
+  with GetFlagStatusResult with HasLocalGitChangesResult with IsDirectoryEmptyEnoughAsMoveTargetResult
+  with IsDirectoryEmptyEnoughForRemovingResult with IsHostReachableResult with ListDirectoryContentsResult
+  with MoveFileResult with MoveToTrashResult with ReadFileAsStringResult with RemoveFileResult
+  with RemoveGitModuleResult with RemoveGitModuleRemoteResult with SaveStringToFileResult {
   override def throwableOpt:Option[Throwable] = Some(exception)
 }
 object IOSuccess extends AddGitModuleRemoteResult with CloneGitModuleResult with CreateDirectoryResult
   with CreateLockFileResult with LogResult with MoveFileResult with MoveToTrashResult with RemoveFileResult
   with RemoveGitModuleRemoteResult with RemoveGitModuleResult with SaveStringToFileResult
 
-final case class BooleanIOResult(value:Boolean) extends HasLocalGitChangesResult
-  with IsDirectoryEmptyEnoughAsMoveTargetResult with IsDirectoryEmptyEnoughForRemovingResult
+final case class BooleanIOResult(value:Boolean) extends GetFlagStatusResult with HasLocalGitChangesResult
+  with IsDirectoryEmptyEnoughAsMoveTargetResult with IsDirectoryEmptyEnoughForRemovingResult with IsHostReachableResult
 final case class DirectoryListResult(containedFiles:Set[ExistingFileInfo]) extends ListDirectoryContentsResult
 final case class FileInfoResult(fileInfo:FileInfo) extends GetFileInfoResult
 final case class StringIOResult(value:String) extends ReadFileAsStringResult

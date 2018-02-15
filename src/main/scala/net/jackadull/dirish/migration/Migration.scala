@@ -13,7 +13,7 @@ import scala.collection.immutable.ListSet
 import scala.language.postfixOps
 
 object Migration {
-  final case class MigrationResult(state:ProjectConfig, errorOpt:Option[IOError]=None, lastSavedState:Option[ProjectConfig]=None, changesNotPerformed:Set[ConfigChangeSpec]=Set(), changesSkippedForDownstream:ListSet[ConfigChangeSpec]=ListSet(), failures:Set[(ConfigChangeSpec,IOError)]=Set()) extends CustomIOResult {
+  final case class MigrationResult(state:ProjectConfig, errorOpt:Option[IOError]=None, lastSavedState:Option[ProjectConfig]=None, changesNotPerformed:Set[ConfigChangeSpec]=Set(), changesSkippedForDownstream:ListSet[ConfigChangeSpec]=ListSet(), changesSkippedBecauseNotAllFlagsAreUp:ListSet[ConfigChangeSpec]=ListSet(), failures:Set[(ConfigChangeSpec,IOError)]=Set()) extends CustomIOResult {
     def absoluteProjectPath(projectID:UUID):AbsolutePathSpec = baseDirectoryPath(state.projectBaseDirectoryID(projectID).get)/state.projectLocalPath(projectID).get
     def baseDirectoryPath(baseDirectoryID:UUID):AbsolutePathSpec = state.baseDirectoryPath(baseDirectoryID).get
     def doesProjectHaveGitModule(projectID:UUID):Boolean = state.projectFirstRemote(projectID).isDefined
@@ -24,7 +24,8 @@ object Migration {
     def notPerformingChangeTransitive(changeNotPerformed:ConfigChangeSpec):MigrationResult = copy(changesNotPerformed = changesNotPerformed + changeNotPerformed)
     def performedChange(change:ConfigChangeSpec):MigrationResult = copy(state = getRight(change.applyTo(state)))
     def performedImplicitlySkippedUpstreamChange(skipped:ConfigChangeSpec):MigrationResult = copy(changesNotPerformed = changesNotPerformed - skipped, changesSkippedForDownstream = changesSkippedForDownstream - skipped).performedChange(skipped)
-    def skippedBecauseOfDownstreamChange(change:ConfigChangeSpec):MigrationResult = copy(changesNotPerformed = changesNotPerformed + change, changesSkippedForDownstream = changesSkippedForDownstream + change)
+    def skippedBecauseNotAllFlagsAreUp(change:ConfigChangeSpec):MigrationResult = copy(changesNotPerformed = changesNotPerformed + change)
+    def skippedBecauseOfDownstreamChange(change:ConfigChangeSpec):MigrationResult = copy(changesNotPerformed = changesNotPerformed + change, changesSkippedForDownstream = changesSkippedForDownstream + change, changesSkippedBecauseNotAllFlagsAreUp = changesSkippedBecauseNotAllFlagsAreUp + change)
 
     private def getRight[A,B](either:Either[A,B]):B = either match {
       case Left(left) ⇒ sys error s"expected Right, but got Left($left)"
@@ -71,6 +72,24 @@ object Migration {
       }
     }
     val local = MigrationStep.applyInSequence(withRetainedProjects map RemoveGitModuleStep, soFar2)
+    advanceStep(local, projectActiveFlagsRemovedStage(stage nextStage, _))
+  }
+
+  private def projectActiveFlagsRemovedStage(stage:ProjectActiveFlagsRemovedStage, soFar:IOOp[MigrationResult]):IOOp[MigrationResult] = {
+    val (withProjectsScheduledForRemoval, withRetainedProjects) =
+      stage.projectActiveFlagsRemoved.partition(toRemove ⇒ stage willProjectBeRemoved toRemove.projectID)
+    val soFar2 = soFar flatMap {state ⇒
+      val state2 = withProjectsScheduledForRemoval.foldLeft(state) {_ skippedBecauseOfDownstreamChange _}
+      withProjectsScheduledForRemoval.size match {
+        case 0 ⇒ IOBind(state2)
+        case 1 ⇒
+          val change = withProjectsScheduledForRemoval.head
+          Log(SkippedChangeForDownstreamChange, s"Skipped removing project active flag from project ${change projectID} because project is scheduled for removal.") map {_ ⇒ state2}
+        case _ ⇒
+          Log(SkippedChangeForDownstreamChange, s"Skipped removing project active flags because their projects are scheduled for removal: ${withProjectsScheduledForRemoval.map(_.projectID.toString).toSeq.sorted mkString ", "}") map {_ ⇒ state2}
+      }
+    }
+    val local = MigrationStep.applyInSequence(withRetainedProjects map RemoveProjectActiveFlagStep, soFar2)
     advanceStep(local, projectsRemovedStage(stage nextStage, _))
   }
 
@@ -122,6 +141,11 @@ object Migration {
 
   private def projectsAddedStage(stage:ProjectsAddedStage, soFar:IOOp[MigrationResult]):IOOp[MigrationResult] = {
     val local = MigrationStep.applyInSequence(stage.projectsAdded map AddProjectStep, soFar)
+    advanceStep(local, projectActiveFlagsAddedStage(stage nextStage, _))
+  }
+
+  private def projectActiveFlagsAddedStage(stage:ProjectActiveFlagsAddedStage, soFar:IOOp[MigrationResult]):IOOp[MigrationResult] = {
+    val local = MigrationStep.applyInSequence(stage.projectActiveFlagsAdded map AddProjectActiveFlagStep, soFar)
     advanceStep(local, gitModulesAddedStage(stage nextStage, _))
   }
 
@@ -153,6 +177,7 @@ object Migration {
       case (a:GitModuleRemoteAddedSpec, b:GitModuleFirstRemoteChangedSpec) if a.projectID == b.projectID ⇒ true
       case (a:GitModuleRemoteAddedSpec, b:GitModuleRemoteAddedSpec) if a.projectID == b.projectID ⇒ true
       case (a:GitModuleRemoteAddedSpec, b:GitModuleRemoteRemovedSpec) if a.projectID == b.projectID ⇒ true
+      case (a:ProjectActiveFlagAddedSpec, b:ProjectAddedSpec) if a.projectID == b.id ⇒ true
       case (a:ProjectAddedSpec, b:BaseDirectoryAddedSpec) if a.location.baseDirectoryID == b.id ⇒ true
       case (a:ProjectAddedSpec, b:ProjectMovedSpec) if a.location == b.from ⇒ true
       case (a:ProjectAddedSpec, b:ProjectRemovedSpec) if a.location == b.location ⇒ true
