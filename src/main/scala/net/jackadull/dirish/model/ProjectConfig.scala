@@ -2,13 +2,15 @@ package net.jackadull.dirish.model
 
 import java.util.UUID
 
-import net.jackadull.dirish.io.flags.IOFlag
+import net.jackadull.dirish.migration.Migration.MigrationStyle
+import net.jackadull.dirish.op.OpError
+import net.jackadull.dirish.op.signals.Signal
 import net.jackadull.dirish.path.{AbsolutePathSpec, RelativePathSpec}
 
 import scala.language.postfixOps
 
 sealed trait ProjectConfig {
-  def activeFlagsOfProject(projectID:UUID):Set[IOFlag]
+  def activeSignals(projectID:UUID):Set[Signal[Boolean,OpError,MigrationStyle]]
   def baseDirectoryIDs:Set[UUID]
   def baseDirectoryPath(baseDirectoryID:UUID):Option[AbsolutePathSpec]
   def projectAdditionalGitRemotes(projectID:UUID):Set[(String,String)]
@@ -18,18 +20,18 @@ sealed trait ProjectConfig {
   def projectLocalPath(projectID:UUID):Option[RelativePathSpec]
 
   def addBaseDirectory(id:UUID, path:AbsolutePathSpec):Either[BaseDirectoryAddError,ProjectConfig]
-  def addGitModule(projectID:UUID, firstRemote:(String,String)):Either[GitModuleAddError,ProjectConfig]
-  def addGitModuleRemote(projectID:UUID, newRemote:(String,String)):Either[GitModuleAddRemoteError,ProjectConfig]
+  def addGitRepository(projectID:UUID, firstRemote:(String,String)):Either[GitRepositoryAddError,ProjectConfig]
+  def addGitRepositoryRemote(projectID:UUID, newRemote:(String,String)):Either[GitAddRemoteError,ProjectConfig]
   def addProject(projectID:UUID, baseDirectoryID:UUID, localPath:RelativePathSpec):Either[ProjectAddError,ProjectConfig]
-  def addProjectActiveFlag(projectID:UUID, flag:IOFlag):Either[ProjectActiveFlagAddError,ProjectConfig]
-  def changeGitModuleFirstRemote(projectID:UUID, newFirstRemote:(String,String)):Either[GitModuleChangeFirstRemoteError,ProjectConfig]
+  def addProjectActiveSignal(projectID:UUID, signal:Signal[Boolean,OpError,MigrationStyle]):Either[ProjectActiveSignalAddError,ProjectConfig]
+  def changeGitFirstRemote(projectID:UUID, newFirstRemote:(String,String)):Either[GitChangeFirstRemoteError,ProjectConfig]
   def moveBaseDirectory(id:UUID, newPath:AbsolutePathSpec):Either[BaseDirectoryMoveError,ProjectConfig]
   def moveProject(id:UUID, newBaseDirectoryID:UUID, newLocalPath:RelativePathSpec):Either[ProjectMoveError,ProjectConfig]
   def removeBaseDirectory(id:UUID):Either[BaseDirectoryRemoveError,ProjectConfig]
-  def removeGitModule(projectID:UUID):Either[GitModuleRemoveError,ProjectConfig]
-  def removeGitModuleRemote(projectID:UUID, remoteName:String):Either[GitModuleRemoveRemoteError,ProjectConfig]
+  def removeGitRepository(projectID:UUID):Either[GitRepositoryRemoveError,ProjectConfig]
+  def removeGitRemote(projectID:UUID, remoteName:String):Either[GitRemoveRemoteError,ProjectConfig]
   def removeProject(projectID:UUID):Either[ProjectRemoveError,ProjectConfig]
-  def removeProjectActiveFlag(projectID:UUID, flag:IOFlag):Either[ProjectActiveFlagRemoveError,ProjectConfig]
+  def removeProjectActiveSignal(projectID:UUID, signal:Signal[Boolean,OpError,MigrationStyle]):Either[ProjectActiveSignalRemoveError,ProjectConfig]
 }
 object ProjectConfig {
   val empty:ProjectConfig = ProjectConfigData()
@@ -39,20 +41,20 @@ object ProjectConfig {
   }
 
   private def changesBetweenData(from:ProjectConfigData, to:ProjectConfigData):ConfigChangeStages = new ConfigChangeStages {
-    def nextStage:GitModuleRemotesRemovedStage = gitModuleRemotesRemovedStage
+    def nextStage:GitRemotesRemovedStage = gitRemotesRemovedStage
 
     private def allAdditionalRemotes(data:ProjectConfigData):Set[(UUID,String,String)] =
-      data.gitModuleAdditionalRemotes.toSet flatMap {e:(UUID,Set[(String,String)])⇒
+      data.gitAdditionalRemotes.toSet flatMap {e:(UUID,Set[(String,String)])⇒
         e._2 map {e2:(String,String) ⇒ (e _1, e2 _1, e2 _2)}
       }
-    private def allProjectActiveFlags(data:ProjectConfigData):Set[(UUID,IOFlag)] =
-      data.projectActiveFlags.toSet flatMap {e:(UUID,Set[IOFlag])⇒
-        e._2 map {e2:IOFlag ⇒ (e _1, e2)}
+    private def allProjectActiveSignals(data:ProjectConfigData):Set[(UUID,Signal[Boolean,OpError,MigrationStyle])] =
+      data.projectActiveSignals.toSet flatMap {e:(UUID,Set[Signal[Boolean,OpError,MigrationStyle]])⇒
+        e._2 map {e2:Signal[Boolean,OpError,MigrationStyle] ⇒ (e _1, e2)}
       }
     private lazy val fromAdditionalRemotes:Set[(UUID,String,String)] = allAdditionalRemotes(from)
-    private lazy val fromProjectActiveFlags:Set[(UUID,IOFlag)] = allProjectActiveFlags(from)
+    private lazy val fromProjectActiveSignals:Set[(UUID,Signal[Boolean,OpError,MigrationStyle])] = allProjectActiveSignals(from)
     private lazy val toAdditionalRemotes:Set[(UUID,String,String)] = allAdditionalRemotes(to)
-    private lazy val toProjectActiveFlags:Set[(UUID,IOFlag)] = allProjectActiveFlags(to)
+    private lazy val toProjectActiveSignals:Set[(UUID,Signal[Boolean,OpError,MigrationStyle])] = allProjectActiveSignals(to)
 
     private trait StageImpl {
       lazy val baseDirectoriesAdded:Set[BaseDirectoryAddedSpec] =
@@ -61,20 +63,20 @@ object ProjectConfig {
         toBaseDirectoryMovedSpecs(movedEntries(from baseDirectories, to baseDirectories))
       lazy val baseDirectoriesRemoved:Set[BaseDirectoryRemovedSpec] =
         toBaseDirectoryRemovedSpecs(removedEntries(from baseDirectories, to baseDirectories))
-      lazy val gitModuleFirstRemotesChanged:Set[GitModuleFirstRemoteChangedSpec] =
-        toGitModuleFirstRemotesChangedSpecs(movedEntries(from gitModules, to gitModules))
-      lazy val gitModuleRemotesAdded:Set[GitModuleRemoteAddedSpec] =
-        toGitModuleRemoteAddedSpecs(toAdditionalRemotes -- fromAdditionalRemotes)
-      lazy val gitModuleRemotesRemoved:Set[GitModuleRemoteRemovedSpec] =
-        toGitModuleRemoteRemovedSpecs(fromAdditionalRemotes -- toAdditionalRemotes)
-      lazy val gitModulesAdded:Set[GitModuleAddedSpec] =
-        toGitModuleAddedSpecs(addedEntries(from gitModules, to gitModules))
-      lazy val gitModulesRemoved:Set[GitModuleRemovedSpec] =
-        toGitModuleRemovedSpecs(removedEntries(from gitModules, to gitModules) keySet)
-      lazy val projectActiveFlagsAdded:Set[ProjectActiveFlagAddedSpec] =
-        toProjectActiveFlagsAddedSpecs(toProjectActiveFlags -- fromProjectActiveFlags)
-      lazy val projectActiveFlagsRemoved:Set[ProjectActiveFlagRemovedSpec] =
-        toProjectActiveFlagsRemovedSpecs(fromProjectActiveFlags -- toProjectActiveFlags)
+      lazy val gitFirstRemotesChanged:Set[GitFirstRemoteChangedSpec] =
+        toGitFirstRemotesChangedSpecs(movedEntries(from gitRepositories, to gitRepositories))
+      lazy val gitRemotesAdded:Set[GitRemoteAddedSpec] =
+        toGitRemoteAddedSpecs(toAdditionalRemotes -- fromAdditionalRemotes)
+      lazy val gitRemotesRemoved:Set[GitRemoteRemovedSpec] =
+        toGitRemoteRemovedSpecs(fromAdditionalRemotes -- toAdditionalRemotes)
+      lazy val gitRepositoriesAdded:Set[GitRepositoryAddedSpec] =
+        toGitRepositoryAddedSpecs(addedEntries(from gitRepositories, to gitRepositories))
+      lazy val gitRepositoriesRemoved:Set[GitRepositoryRemovedSpec] =
+        toGitRepositoryRemovedSpecs(removedEntries(from gitRepositories, to gitRepositories) keySet)
+      lazy val projectActiveSignalsAdded:Set[ProjectActiveSignalAddedSpec] =
+        toProjectActiveSignalsAddedSpecs(toProjectActiveSignals -- fromProjectActiveSignals)
+      lazy val projectActiveSignalsRemoved:Set[ProjectActiveSignalRemovedSpec] =
+        toProjectActiveSignalsRemovedSpecs(fromProjectActiveSignals -- toProjectActiveSignals)
       lazy val projectsAdded:Set[ProjectAddedSpec] =
         toProjectAddedSpecs(addedEntries(from projects, to projects))
       lazy val projectsMoved:Set[ProjectMovedSpec] =
@@ -85,19 +87,19 @@ object ProjectConfig {
 
     private abstract class StageWithNext[A<:ConfigChangeStage](next: ⇒A) extends StageImpl {def nextStage:A = next}
 
-    private object gitModuleRemotesRemovedStage extends StageWithNext(gitModulesRemovedStage) with GitModuleRemotesRemovedStage
-    private object gitModulesRemovedStage extends StageWithNext(projectActiveFlagsRemovedStage) with GitModulesRemovedStage
-    private object projectActiveFlagsRemovedStage extends StageWithNext(projectsRemovedStage) with ProjectActiveFlagsRemovedStage
+    private object gitRemotesRemovedStage extends StageWithNext(gitRepositoriesRemovedStage) with GitRemotesRemovedStage
+    private object gitRepositoriesRemovedStage extends StageWithNext(projectActiveSignalsRemovedStage) with GitRepositoriesRemovedStage
+    private object projectActiveSignalsRemovedStage extends StageWithNext(projectsRemovedStage) with ProjectActiveSignalsRemovedStage
     private object projectsRemovedStage extends StageWithNext(baseDirectoriesRemovedStage) with ProjectsRemovedStage
-    private object baseDirectoriesRemovedStage extends StageWithNext(gitModuleFirstRemotesChangedStage) with BaseDirectoriesRemovedStage
-    private object gitModuleFirstRemotesChangedStage extends StageWithNext(projectsMovedStage) with GitModuleFirstRemotesChangedStage
+    private object baseDirectoriesRemovedStage extends StageWithNext(gitFirstRemotesChangedStage) with BaseDirectoriesRemovedStage
+    private object gitFirstRemotesChangedStage extends StageWithNext(projectsMovedStage) with GitFirstRemotesChangedStage
     private object projectsMovedStage extends StageWithNext(baseDirectoriesMovedStage) with ProjectsMovedStage
     private object baseDirectoriesMovedStage extends StageWithNext(baseDirectoriesAddedStage) with BaseDirectoriesMovedStage
     private object baseDirectoriesAddedStage extends StageWithNext(projectsAddedStage) with BaseDirectoriesAddedStage
-    private object projectsAddedStage extends StageWithNext(projectActiveFlagsAddedStage) with ProjectsAddedStage
-    private object projectActiveFlagsAddedStage extends StageWithNext(gitModulesAddedStage) with ProjectActiveFlagsAddedStage
-    private object gitModulesAddedStage extends StageWithNext(gitModuleRemotesAddedStage) with GitModulesAddedStage
-    private object gitModuleRemotesAddedStage extends StageImpl with GitModuleRemotesAddedStage
+    private object projectsAddedStage extends StageWithNext(projectActiveSignalsAddedStage) with ProjectsAddedStage
+    private object projectActiveSignalsAddedStage extends StageWithNext(gitRepositoriesAddedStage) with ProjectActiveSignalsAddedStage
+    private object gitRepositoriesAddedStage extends StageWithNext(gitRemotesAddedStage) with GitRepositoriesAddedStage
+    private object gitRemotesAddedStage extends StageImpl with GitRemotesAddedStage
   }
 
   private def addedEntries[K,V](from:Map[K,V], to:Map[K,V]):Map[K,V] = to -- from.keySet
@@ -110,20 +112,20 @@ object ProjectConfig {
     entries.toSet map {e:(UUID,(AbsolutePathSpec,AbsolutePathSpec)) ⇒ BaseDirectoryMovedSpec(e _1, e._2 _1, e._2 _2)}
   private def toBaseDirectoryRemovedSpecs(entries:Traversable[(UUID,AbsolutePathSpec)]):Set[BaseDirectoryRemovedSpec] =
     entries.toSet map BaseDirectoryRemovedSpec.tupled
-  private def toGitModuleAddedSpecs(entries:Traversable[(UUID,(String,String))]):Set[GitModuleAddedSpec] =
-    entries.toSet map {e:(UUID,(String,String)) ⇒ GitModuleAddedSpec(e _1, e _2)}
-  private def toGitModuleFirstRemotesChangedSpecs(entries:Traversable[(UUID,((String,String),(String,String)))]):Set[GitModuleFirstRemoteChangedSpec] =
-    entries.toSet map {e:(UUID,((String,String),(String,String))) ⇒ GitModuleFirstRemoteChangedSpec(e _1, e._2._2)}
-  private def toGitModuleRemoteAddedSpecs(entries:Traversable[(UUID,String,String)]):Set[GitModuleRemoteAddedSpec] =
-    entries.toSet map {e:(UUID,String,String) ⇒ GitModuleRemoteAddedSpec(e _1, (e _2, e _3))}
-  private def toGitModuleRemoteRemovedSpecs(entries:Traversable[(UUID,String,String)]):Set[GitModuleRemoteRemovedSpec] =
-    entries.toSet map {e:(UUID,String,String) ⇒ GitModuleRemoteRemovedSpec(e _1, e _2)}
-  private def toGitModuleRemovedSpecs(entries:Traversable[UUID]):Set[GitModuleRemovedSpec] =
-    entries.toSet map {id:UUID ⇒ GitModuleRemovedSpec(id)}
-  private def toProjectActiveFlagsAddedSpecs(entries:Traversable[(UUID,IOFlag)]):Set[ProjectActiveFlagAddedSpec] =
-    entries.toSet map ProjectActiveFlagAddedSpec.tupled
-  private def toProjectActiveFlagsRemovedSpecs(entries:Traversable[(UUID,IOFlag)]):Set[ProjectActiveFlagRemovedSpec] =
-    entries.toSet map ProjectActiveFlagRemovedSpec.tupled
+  private def toGitRepositoryAddedSpecs(entries:Traversable[(UUID,(String,String))]):Set[GitRepositoryAddedSpec] =
+    entries.toSet map {e:(UUID,(String,String)) ⇒ GitRepositoryAddedSpec(e _1, e _2)}
+  private def toGitFirstRemotesChangedSpecs(entries:Traversable[(UUID,((String,String),(String,String)))]):Set[GitFirstRemoteChangedSpec] =
+    entries.toSet map {e:(UUID,((String,String),(String,String))) ⇒ GitFirstRemoteChangedSpec(e _1, e._2._2)}
+  private def toGitRemoteAddedSpecs(entries:Traversable[(UUID,String,String)]):Set[GitRemoteAddedSpec] =
+    entries.toSet map {e:(UUID,String,String) ⇒ GitRemoteAddedSpec(e _1, (e _2, e _3))}
+  private def toGitRemoteRemovedSpecs(entries:Traversable[(UUID,String,String)]):Set[GitRemoteRemovedSpec] =
+    entries.toSet map {e:(UUID,String,String) ⇒ GitRemoteRemovedSpec(e _1, e _2)}
+  private def toGitRepositoryRemovedSpecs(entries:Traversable[UUID]):Set[GitRepositoryRemovedSpec] =
+    entries.toSet map {id:UUID ⇒ GitRepositoryRemovedSpec(id)}
+  private def toProjectActiveSignalsAddedSpecs(entries:Traversable[(UUID,Signal[Boolean,OpError,MigrationStyle])]):Set[ProjectActiveSignalAddedSpec] =
+    entries.toSet map ProjectActiveSignalAddedSpec.tupled
+  private def toProjectActiveSignalsRemovedSpecs(entries:Traversable[(UUID,Signal[Boolean,OpError,MigrationStyle])]):Set[ProjectActiveSignalRemovedSpec] =
+    entries.toSet map ProjectActiveSignalRemovedSpec.tupled
   private def toProjectAddedSpecs(entries:Traversable[(UUID,(UUID,RelativePathSpec))]):Set[ProjectAddedSpec] =
     entries.toSet map toProjectAddedSpec
   private def toProjectMovedSpecs(entries:Traversable[(UUID,((UUID,RelativePathSpec),(UUID,RelativePathSpec)))]):Set[ProjectMovedSpec] =
@@ -141,17 +143,17 @@ object ProjectConfig {
 
 private final case class ProjectConfigData(
   baseDirectories:Map[UUID,AbsolutePathSpec] = Map(),
-  gitModuleAdditionalRemotes:Map[UUID,Set[(String,String)]] = Map(),
-  gitModules:Map[UUID,(String,String)] = Map(),
-  projectActiveFlags:Map[UUID,Set[IOFlag]] = Map(),
+  gitAdditionalRemotes:Map[UUID,Set[(String,String)]] = Map(),
+  gitRepositories:Map[UUID,(String,String)] = Map(),
+  projectActiveSignals:Map[UUID,Set[Signal[Boolean,OpError,MigrationStyle]]] = Map(),
   projects:Map[UUID,(UUID,RelativePathSpec)] = Map()
 ) extends ProjectConfig {
-  def activeFlagsOfProject(projectID:UUID):Set[IOFlag] = projectActiveFlags.getOrElse(projectID, Set())
+  def activeSignals(projectID:UUID):Set[Signal[Boolean,OpError,MigrationStyle]] = projectActiveSignals.getOrElse(projectID, Set())
   def baseDirectoryIDs:Set[UUID] = baseDirectories keySet
   def baseDirectoryPath(baseDirectoryID:UUID):Option[AbsolutePathSpec] = baseDirectories.get(baseDirectoryID)
-  def projectAdditionalGitRemotes(projectID:UUID):Set[(String,String)] = gitModuleAdditionalRemotes.getOrElse(projectID, Set())
+  def projectAdditionalGitRemotes(projectID:UUID):Set[(String,String)] = gitAdditionalRemotes.getOrElse(projectID, Set())
   def projectBaseDirectoryID(projectID:UUID):Option[UUID] = projects.get(projectID).map(_._1)
-  def projectFirstRemote(projectID:UUID):Option[(String,String)] = gitModules.get(projectID)
+  def projectFirstRemote(projectID:UUID):Option[(String,String)] = gitRepositories.get(projectID)
   def projectIDs:Set[UUID] = projects keySet
   def projectLocalPath(projectID:UUID):Option[RelativePathSpec] = projects.get(projectID).map(_._2)
 
@@ -168,21 +170,21 @@ private final case class ProjectConfigData(
       }
     }
 
-  def addGitModule(projectID:UUID, firstRemote:(String,String)) =
+  def addGitRepository(projectID:UUID, firstRemote:(String,String)) =
     if(projects contains projectID)
-      if(gitModules contains projectID) Left(ProjectAlreadyHasGitModule(projectID))
-      else Right(copy(gitModules = gitModules + (projectID → firstRemote)))
+      if(gitRepositories contains projectID) Left(ProjectAlreadyHasGitRepository(projectID))
+      else Right(copy(gitRepositories = gitRepositories + (projectID → firstRemote)))
     else Left(ProjectNotFoundForID(projectID))
 
-  def addGitModuleRemote(projectID:UUID, newRemote:(String,String)) =
+  def addGitRepositoryRemote(projectID:UUID, newRemote:(String,String)) =
     if(projects contains projectID)
-      if(gitModules contains projectID)
-        if(gitModules(projectID) == newRemote) Left(GitModuleAlreadyHasFirstRemote(projectID, newRemote))
-        else if(gitModuleAdditionalRemotes.get(projectID).exists(_.contains(newRemote))) Left(GitModuleAlreadyHasAdditionalRemote(projectID, newRemote))
-        else if(gitModules(projectID)._1 == newRemote._1) Left(GitModuleAlreadyHasFirstRemoteNamed(projectID, newRemote _1))
-        else if(gitModuleAdditionalRemotes.get(projectID).exists(_.exists(_._1 == newRemote._1))) Left(GitModuleAlreadyHasAdditionalRemoteNamed(projectID, newRemote _1))
-        else Right(copy(gitModuleAdditionalRemotes = gitModuleAdditionalRemotes + (projectID → (gitModuleAdditionalRemotes.getOrElse(projectID, Set()) + newRemote))))
-      else Left(GitModuleNotFoundForProjectID(projectID))
+      if(gitRepositories contains projectID)
+        if(gitRepositories(projectID) == newRemote) Left(FirstGitRemoteAlreadyPresent(projectID, newRemote))
+        else if(gitAdditionalRemotes.get(projectID).exists(_.contains(newRemote))) Left(AdditionalGitRemoteAlreadyPresent(projectID, newRemote))
+        else if(gitRepositories(projectID)._1 == newRemote._1) Left(FirstRemoteWithNameAlreadyPresent(projectID, newRemote _1))
+        else if(gitAdditionalRemotes.get(projectID).exists(_.exists(_._1 == newRemote._1))) Left(AdditionalGitRemoteWithNameAlreadyPresent(projectID, newRemote _1))
+        else Right(copy(gitAdditionalRemotes = gitAdditionalRemotes + (projectID → (gitAdditionalRemotes.getOrElse(projectID, Set()) + newRemote))))
+      else Left(GitRepositoryNotFoundForProjectID(projectID))
     else Left(ProjectNotFoundForID(projectID))
 
   def addProject(projectID:UUID, baseDirectoryID:UUID, localPath:RelativePathSpec) =
@@ -192,25 +194,25 @@ private final case class ProjectConfigData(
     else if(projects.values exists {p ⇒ (p._1 == baseDirectoryID) && ((p._2 startsWith localPath) || (localPath startsWith p._2))}) Left(ProjectWithCrossingPathAlreadyExists(projectID, baseDirectoryID, localPath))
     else Right(copy(projects = projects + (projectID → (baseDirectoryID, localPath))))
 
-  def addProjectActiveFlag(projectID:UUID, flag:IOFlag) =
+  def addProjectActiveSignal(projectID:UUID, signal:Signal[Boolean,OpError,MigrationStyle]) =
     if(!(projects contains projectID)) Left(ProjectNotFoundForID(projectID))
-    else projectActiveFlags get projectID match {
-      case None ⇒ Right(copy(projectActiveFlags = projectActiveFlags + (projectID → Set(flag))))
-      case Some(containsFlag) if containsFlag(flag) ⇒ Left(ProjectActiveFlagAlreadyPresent(projectID, flag))
-      case Some(flags) ⇒ Right(copy(projectActiveFlags = projectActiveFlags + (projectID → (flags + flag))))
+    else projectActiveSignals get projectID match {
+      case None ⇒ Right(copy(projectActiveSignals = projectActiveSignals + (projectID → Set(signal))))
+      case Some(containsSignal) if containsSignal(signal) ⇒ Left(ProjectActiveSignalAlreadyPresent(projectID, signal))
+      case Some(signals) ⇒ Right(copy(projectActiveSignals = projectActiveSignals + (projectID → (signals + signal))))
     }
 
-  def changeGitModuleFirstRemote(projectID:UUID, newFirstRemote:(String,String)) = gitModules get projectID match {
+  def changeGitFirstRemote(projectID:UUID, newFirstRemote:(String,String)) = gitRepositories get projectID match {
     case None ⇒
       if(!(projects contains projectID)) Left(ProjectNotFoundForID(projectID))
-      else Left(GitModuleNotFoundForProjectID(projectID))
-    case Some(`newFirstRemote`) ⇒ Left(GitModuleAlreadyHasFirstRemote(projectID, newFirstRemote))
-    case Some(_) ⇒ gitModuleAdditionalRemotes getOrElse (projectID, Set()) match {
+      else Left(GitRepositoryNotFoundForProjectID(projectID))
+    case Some(`newFirstRemote`) ⇒ Left(FirstGitRemoteAlreadyPresent(projectID, newFirstRemote))
+    case Some(_) ⇒ gitAdditionalRemotes getOrElse (projectID, Set()) match {
       case withNewFirstRemote if withNewFirstRemote contains newFirstRemote ⇒
-        Left(GitModuleAlreadyHasAdditionalRemote(projectID, newFirstRemote))
+        Left(AdditionalGitRemoteAlreadyPresent(projectID, newFirstRemote))
       case withNewFirstRemoteName if withNewFirstRemoteName.exists(_._1 == newFirstRemote._1) ⇒
-        Left(GitModuleAlreadyHasAdditionalRemoteNamed(projectID, newFirstRemote._1))
-      case _ ⇒ Right(copy(gitModules = gitModules + (projectID → newFirstRemote)))
+        Left(AdditionalGitRemoteWithNameAlreadyPresent(projectID, newFirstRemote._1))
+      case _ ⇒ Right(copy(gitRepositories = gitRepositories + (projectID → newFirstRemote)))
     }
   }
 
@@ -243,39 +245,39 @@ private final case class ProjectConfigData(
       else Right(copy(baseDirectories = baseDirectories - id))
     else Left(BaseDirectoryNotFoundForID(id))
 
-  def removeGitModule(projectID:UUID) =
+  def removeGitRepository(projectID:UUID) =
     if(projects contains projectID)
-      if(gitModules contains projectID)
-        if(gitModuleAdditionalRemotes contains projectID) Left(GitModuleStillHasAdditionalRemotes(projectID))
-        else Right(copy(gitModules = gitModules - projectID))
-      else Left(GitModuleNotFoundForProjectID(projectID))
+      if(gitRepositories contains projectID)
+        if(gitAdditionalRemotes contains projectID) Left(GitRepositoryStillHasAdditionalRemotes(projectID))
+        else Right(copy(gitRepositories = gitRepositories - projectID))
+      else Left(GitRepositoryNotFoundForProjectID(projectID))
     else Left(ProjectNotFoundForID(projectID))
 
-  def removeGitModuleRemote(projectID:UUID, remoteName:String) =
+  def removeGitRemote(projectID:UUID, remoteName:String) =
     if(projects contains projectID)
-      if(gitModules contains projectID)
-        if(gitModules(projectID)._1 == remoteName) Left(CannotRemoveGitModuleFirstRemote(projectID, remoteName))
-        else gitModuleAdditionalRemotes get projectID match {
-          case None ⇒ Left(GitModuleRemoteNotFoundForName(projectID, remoteName))
-          case Some(withoutRemoteName) if !(withoutRemoteName exists (_._1==remoteName)) ⇒ Left(GitModuleRemoteNotFoundForName(projectID, remoteName))
+      if(gitRepositories contains projectID)
+        if(gitRepositories(projectID)._1 == remoteName) Left(CannotRemoveGitFirstRemote(projectID, remoteName))
+        else gitAdditionalRemotes get projectID match {
+          case None ⇒ Left(GitRemoteNotFoundForName(projectID, remoteName))
+          case Some(withoutRemoteName) if !(withoutRemoteName exists (_._1==remoteName)) ⇒ Left(GitRemoteNotFoundForName(projectID, remoteName))
           case Some(withRemoteName) ⇒
-            if(withRemoteName.size == 1) Right(copy(gitModuleAdditionalRemotes = gitModuleAdditionalRemotes - projectID))
-            else Right(copy(gitModuleAdditionalRemotes = gitModuleAdditionalRemotes + (projectID → gitModuleAdditionalRemotes(projectID).filterNot(_._1 == remoteName))))
+            if(withRemoteName.size == 1) Right(copy(gitAdditionalRemotes = gitAdditionalRemotes - projectID))
+            else Right(copy(gitAdditionalRemotes = gitAdditionalRemotes + (projectID → gitAdditionalRemotes(projectID).filterNot(_._1 == remoteName))))
         }
-      else Left(GitModuleNotFoundForProjectID(projectID))
+      else Left(GitRepositoryNotFoundForProjectID(projectID))
     else Left(ProjectNotFoundForID(projectID))
 
   def removeProject(projectID:UUID) =
     if(!(projects contains projectID)) Left(ProjectNotFoundForID(projectID))
-    else if(gitModules contains projectID) Left(ProjectStillReferencedByGitModule(projectID))
-    else if(projectActiveFlags contains projectID) Left(ProjectStillReferencedByActiveFlag(projectID))
+    else if(gitRepositories contains projectID) Left(ProjectStillReferencedByGitRepository(projectID))
+    else if(projectActiveSignals contains projectID) Left(ProjectStillReferencedByActiveSignal(projectID))
     else Right(copy(projects = projects - projectID))
 
-  def removeProjectActiveFlag(projectID:UUID, flag:IOFlag) =
+  def removeProjectActiveSignal(projectID:UUID, signal:Signal[Boolean,OpError,MigrationStyle]) =
     if(!(projects contains projectID)) Left(ProjectNotFoundForID(projectID))
-    else projectActiveFlags get projectID match {
-      case Some(flags) if flags == Set(flag) ⇒ Right(copy(projectActiveFlags = projectActiveFlags - projectID))
-      case Some(flags) if flags(flag) ⇒ Right(copy(projectActiveFlags = projectActiveFlags + (projectID → (flags - flag))))
-      case _ ⇒ Left(ProjectActiveFlagNotFound(projectID, flag))
+    else projectActiveSignals get projectID match {
+      case Some(signals) if signals == Set(signal) ⇒ Right(copy(projectActiveSignals = projectActiveSignals - projectID))
+      case Some(signals) if signals(signal) ⇒ Right(copy(projectActiveSignals = projectActiveSignals + (projectID → (signals - signal))))
+      case _ ⇒ Left(ProjectActiveSignalNotFound(projectID, signal))
     }
 }

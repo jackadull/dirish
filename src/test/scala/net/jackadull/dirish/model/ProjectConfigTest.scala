@@ -48,19 +48,19 @@ class ProjectConfigTest extends FreeSpec with Matchers {
 
   private def allChanges(stage:ConfigChangeStage):Seq[ConfigChangeSpec] = stage match {
     case s:ConfigChangeStages ⇒ allChanges(s nextStage)
-    case s:GitModuleRemotesRemovedStage ⇒ s.gitModuleRemotesRemoved.toSeq ++ allChanges(s nextStage)
-    case s:GitModulesRemovedStage ⇒ s.gitModulesRemoved.toSeq ++ allChanges(s nextStage)
-    case s:ProjectActiveFlagsRemovedStage ⇒ s.projectActiveFlagsRemoved.toSeq ++ allChanges(s nextStage)
+    case s:GitRemotesRemovedStage ⇒ s.gitRemotesRemoved.toSeq ++ allChanges(s nextStage)
+    case s:GitRepositoriesRemovedStage ⇒ s.gitRepositoriesRemoved.toSeq ++ allChanges(s nextStage)
+    case s:ProjectActiveSignalsRemovedStage ⇒ s.projectActiveSignalsRemoved.toSeq ++ allChanges(s nextStage)
     case s:ProjectsRemovedStage ⇒ s.projectsRemoved.toSeq ++ allChanges(s nextStage)
     case s:BaseDirectoriesRemovedStage ⇒ s.baseDirectoriesRemoved.toSeq ++ allChanges(s nextStage)
-    case s:GitModuleFirstRemotesChangedStage ⇒ s.gitModuleFirstRemotesChanged.toSeq ++ allChanges(s nextStage)
+    case s:GitFirstRemotesChangedStage ⇒ s.gitFirstRemotesChanged.toSeq ++ allChanges(s nextStage)
     case s:ProjectsMovedStage ⇒ s.projectsMoved.toSeq ++ allChanges(s nextStage)
     case s:BaseDirectoriesMovedStage ⇒ s.baseDirectoriesMoved.toSeq ++ allChanges(s nextStage)
     case s:BaseDirectoriesAddedStage ⇒ s.baseDirectoriesAdded.toSeq ++ allChanges(s nextStage)
     case s:ProjectsAddedStage ⇒ s.projectsAdded.toSeq ++ allChanges(s nextStage)
-    case s:ProjectActiveFlagsAddedStage ⇒ s.projectActiveFlagsAdded.toSeq ++ allChanges(s nextStage)
-    case s:GitModulesAddedStage ⇒ s.gitModulesAdded.toSeq ++ allChanges(s nextStage)
-    case s:GitModuleRemotesAddedStage ⇒ s.gitModuleRemotesAdded.toSeq
+    case s:ProjectActiveSignalsAddedStage ⇒ s.projectActiveSignalsAdded.toSeq ++ allChanges(s nextStage)
+    case s:GitRepositoriesAddedStage ⇒ s.gitRepositoriesAdded.toSeq ++ allChanges(s nextStage)
+    case s:GitRemotesAddedStage ⇒ s.gitRemotesAdded.toSeq
   }
 
   val simpleChangeSeq1:Seq[ConfigChangeSpec] = Seq(
@@ -70,16 +70,16 @@ class ProjectConfigTest extends FreeSpec with Matchers {
     ProjectAddedSpec("2c58c40d-71e9-4628-9e7b-6f6e1d8077e6", ProjectLocationSpec("3a974981-ed3a-4491-bec9-10409b83d5b2", "foo"/"prj2")),
     ProjectAddedSpec("a2cbc854-dce6-4240-bc43-b52a32d5c5cf", ProjectLocationSpec("3a974981-ed3a-4491-bec9-10409b83d5b2", "prj3")),
     ProjectAddedSpec("39e0c1d2-1f37-4e32-a544-537de4585ba8", ProjectLocationSpec("5f4fcb58-be6a-45d1-b15f-625e8ac70283", "prj3")),
-    GitModuleAddedSpec("39e0c1d2-1f37-4e32-a544-537de4585ba8", "origin" → "foobar"),
-    GitModuleAddedSpec("2c58c40d-71e9-4628-9e7b-6f6e1d8077e6", "origin" → "foobar"),
-    GitModuleRemoteAddedSpec("39e0c1d2-1f37-4e32-a544-537de4585ba8", "alt" → "foobar"),
-    GitModuleRemoteAddedSpec("39e0c1d2-1f37-4e32-a544-537de4585ba8", "downstream" → "foobar2")
+    GitRepositoryAddedSpec("39e0c1d2-1f37-4e32-a544-537de4585ba8", "origin" → "foobar"),
+    GitRepositoryAddedSpec("2c58c40d-71e9-4628-9e7b-6f6e1d8077e6", "origin" → "foobar"),
+    GitRemoteAddedSpec("39e0c1d2-1f37-4e32-a544-537de4585ba8", "alt" → "foobar"),
+    GitRemoteAddedSpec("39e0c1d2-1f37-4e32-a544-537de4585ba8", "downstream" → "foobar2")
   )
   val simpleChangeSeq1Reverse:Seq[ConfigChangeSpec] = Seq(
-    GitModuleRemoteRemovedSpec("39e0c1d2-1f37-4e32-a544-537de4585ba8", "downstream"),
-    GitModuleRemoteRemovedSpec("39e0c1d2-1f37-4e32-a544-537de4585ba8", "alt"),
-    GitModuleRemovedSpec("2c58c40d-71e9-4628-9e7b-6f6e1d8077e6"),
-    GitModuleRemovedSpec("39e0c1d2-1f37-4e32-a544-537de4585ba8"),
+    GitRemoteRemovedSpec("39e0c1d2-1f37-4e32-a544-537de4585ba8", "downstream"),
+    GitRemoteRemovedSpec("39e0c1d2-1f37-4e32-a544-537de4585ba8", "alt"),
+    GitRepositoryRemovedSpec("2c58c40d-71e9-4628-9e7b-6f6e1d8077e6"),
+    GitRepositoryRemovedSpec("39e0c1d2-1f37-4e32-a544-537de4585ba8"),
     ProjectRemovedSpec("39e0c1d2-1f37-4e32-a544-537de4585ba8", ProjectLocationSpec("5f4fcb58-be6a-45d1-b15f-625e8ac70283", "prj3")),
     ProjectRemovedSpec("a2cbc854-dce6-4240-bc43-b52a32d5c5cf", ProjectLocationSpec("3a974981-ed3a-4491-bec9-10409b83d5b2", "prj3")),
     ProjectRemovedSpec("2c58c40d-71e9-4628-9e7b-6f6e1d8077e6", ProjectLocationSpec("3a974981-ed3a-4491-bec9-10409b83d5b2", "foo"/"prj2")),

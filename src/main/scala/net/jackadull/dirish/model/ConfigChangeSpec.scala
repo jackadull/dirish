@@ -2,7 +2,9 @@ package net.jackadull.dirish.model
 
 import java.util.UUID
 
-import net.jackadull.dirish.io.flags.IOFlag
+import net.jackadull.dirish.migration.Migration.MigrationStyle
+import net.jackadull.dirish.op.OpError
+import net.jackadull.dirish.op.signals.Signal
 import net.jackadull.dirish.path.{AbsolutePathSpec, RelativePathSpec}
 
 import scala.language.postfixOps
@@ -19,26 +21,26 @@ final case class BaseDirectoryMovedSpec(id:UUID, from:AbsolutePathSpec, to:Absol
 final case class BaseDirectoryRemovedSpec(id:UUID, path:AbsolutePathSpec) extends ConfigChangeSpec
 {def applyTo(config:ProjectConfig):Either[BaseDirectoryRemoveError,ProjectConfig] = config removeBaseDirectory id}
 
-final case class GitModuleAddedSpec(projectID:UUID, firstRemote:(String,String)) extends ConfigChangeSpec
-{def applyTo(config:ProjectConfig):Either[GitModuleAddError,ProjectConfig] = config addGitModule (projectID, firstRemote)}
+final case class GitRepositoryAddedSpec(projectID:UUID, firstRemote:(String,String)) extends ConfigChangeSpec
+{def applyTo(config:ProjectConfig):Either[GitRepositoryAddError,ProjectConfig] = config addGitRepository (projectID, firstRemote)}
 
-final case class GitModuleFirstRemoteChangedSpec(projectID:UUID, newFirstRemote:(String,String)) extends ConfigChangeSpec
-{def applyTo(config:ProjectConfig):Either[GitModuleChangeFirstRemoteError,ProjectConfig] = config changeGitModuleFirstRemote (projectID, newFirstRemote)}
+final case class GitFirstRemoteChangedSpec(projectID:UUID, newFirstRemote:(String,String)) extends ConfigChangeSpec
+{def applyTo(config:ProjectConfig):Either[GitChangeFirstRemoteError,ProjectConfig] = config changeGitFirstRemote (projectID, newFirstRemote)}
 
-final case class GitModuleRemoteAddedSpec(projectID:UUID, remote:(String,String)) extends ConfigChangeSpec
-{def applyTo(config:ProjectConfig):Either[GitModuleAddRemoteError,ProjectConfig] = config addGitModuleRemote (projectID, remote)}
+final case class GitRemoteAddedSpec(projectID:UUID, remote:(String,String)) extends ConfigChangeSpec
+{def applyTo(config:ProjectConfig):Either[GitAddRemoteError,ProjectConfig] = config addGitRepositoryRemote (projectID, remote)}
 
-final case class GitModuleRemoteRemovedSpec(projectID:UUID, removedRemoteName:String) extends ConfigChangeSpec
-{def applyTo(config:ProjectConfig):Either[GitModuleRemoveRemoteError,ProjectConfig] = config removeGitModuleRemote (projectID, removedRemoteName)}
+final case class GitRemoteRemovedSpec(projectID:UUID, removedRemoteName:String) extends ConfigChangeSpec
+{def applyTo(config:ProjectConfig):Either[GitRemoveRemoteError,ProjectConfig] = config removeGitRemote (projectID, removedRemoteName)}
 
-final case class GitModuleRemovedSpec(projectID:UUID) extends ConfigChangeSpec
-{def applyTo(config:ProjectConfig):Either[GitModuleRemoveError,ProjectConfig] = config removeGitModule projectID}
+final case class GitRepositoryRemovedSpec(projectID:UUID) extends ConfigChangeSpec
+{def applyTo(config:ProjectConfig):Either[GitRepositoryRemoveError,ProjectConfig] = config removeGitRepository projectID}
 
-final case class ProjectActiveFlagAddedSpec(projectID:UUID, flag:IOFlag) extends ConfigChangeSpec
-{def applyTo(config:ProjectConfig):Either[ProjectActiveFlagAddError,ProjectConfig] = config addProjectActiveFlag (projectID, flag)}
+final case class ProjectActiveSignalAddedSpec(projectID:UUID, signal:Signal[Boolean,OpError,MigrationStyle]) extends ConfigChangeSpec
+{def applyTo(config:ProjectConfig):Either[ProjectActiveSignalAddError,ProjectConfig] = config addProjectActiveSignal (projectID, signal)}
 
-final case class ProjectActiveFlagRemovedSpec(projectID:UUID, flag:IOFlag) extends ConfigChangeSpec
-{def applyTo(config:ProjectConfig):Either[ProjectActiveFlagRemoveError,ProjectConfig] = config removeProjectActiveFlag (projectID, flag)}
+final case class ProjectActiveSignalRemovedSpec(projectID:UUID, signal:Signal[Boolean,OpError,MigrationStyle]) extends ConfigChangeSpec
+{def applyTo(config:ProjectConfig):Either[ProjectActiveSignalRemoveError,ProjectConfig] = config removeProjectActiveSignal (projectID, signal)}
 
 final case class ProjectAddedSpec(id:UUID, location:ProjectLocationSpec) extends ConfigChangeSpec
 {def applyTo(config:ProjectConfig):Either[ProjectAddError,ProjectConfig] = config addProject (id, location baseDirectoryID, location localPath)}

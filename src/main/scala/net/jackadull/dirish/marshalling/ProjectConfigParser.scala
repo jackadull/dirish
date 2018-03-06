@@ -23,7 +23,7 @@ object ProjectConfigParser extends RegexParsers {
   private def `for` = RenderProjectConfig.`for` ^^ {_ ⇒ ForToken}
   private def gitRemoteName = """[^~\^\:\s\\]+""".r ^^ GitRemoteNameToken
   private def gitRemoteURI = """[^\s,}]+""".r ^^ GitRemoteURIToken
-  private def gitModule = RenderProjectConfig.gitModule ^^ {_ ⇒ GitModuleToken}
+  private def gitRepository = RenderProjectConfig.gitRepository ^^ {_ ⇒ GitRepositoryToken}
   private def host = RenderProjectConfig.host ^^ {_ ⇒ HostToken}
   private def hostName = """[^\s}]+""".r ^^ HostNameToken
   private def listSeparator = RenderProjectConfig.listSeparator ^^ {_ ⇒ ListSeparatorToken}
@@ -35,7 +35,7 @@ object ProjectConfigParser extends RegexParsers {
   private def when = RenderProjectConfig.when ^^ {_ ⇒ WhenToken}
   private def within = RenderProjectConfig.within ^^ {_ ⇒ WithinToken}
 
-  private def activeWhen:Parser[ActiveWhenToken] = active ~ when ~ blockOpen ~ flags ~ blockClose ^^ {
+  private def activeWhen:Parser[ActiveWhenToken] = active ~ when ~ blockOpen ~ signals ~ blockClose ^^ {
     case _ ~ _ ~ _ ~ fs ~ _ ⇒ ActiveWhenToken(fs)
   }
   private def baseDirDef:Parser[BaseDirDefToken] = pathElements ~ uuidSeparator ~ uuid ~ blockOpen ~ directoryContentsList ~ blockClose ^^ {
@@ -48,16 +48,8 @@ object ProjectConfigParser extends RegexParsers {
     case path ~ _ ~ contents ~ _ ⇒ DirectoryDefToken(path, contents)
   }
   private def duration:Parser[DurationToken] = rep1(timeWithUnit) ^^ DurationToken
-  private def flag:Parser[FlagToken] = hostReachable ~ opt(flagCacheTTL) ^^ {
-    case hr ~ None ⇒ hr
-    case hr ~ Some(duration) ⇒ CachedFlagToken(hr, duration)
-  }
-  private def flagCacheTTL:Parser[DurationToken] = braceOpen ~ cached ~ `for` ~ duration ~ braceClose ^^ {
-    case _ ~ _ ~ _ ~ d ~ _ ⇒ d
-  }
-  private def flags:Parser[List[FlagToken]] = rep1sep(flag, listSeparator)
-  private def gitModuleDef:Parser[GitModuleDefToken] = gitModule ~ blockOpen ~ gitRemotes ~ blockClose ^^ {
-    case _ ~ _ ~ remotes ~ _ ⇒ GitModuleDefToken(remotes)
+  private def gitRepositoryDef:Parser[GitRepositoryDefToken] = gitRepository ~ blockOpen ~ gitRemotes ~ blockClose ^^ {
+    case _ ~ _ ~ remotes ~ _ ⇒ GitRepositoryDefToken(remotes)
   }
   private def gitRemote:Parser[GitRemoteToken] = gitRemoteName ~ gitRemoteURI ^^ {case name ~ uri ⇒ GitRemoteToken(name, uri)}
   private def gitRemotes:Parser[GitRemotesToken] = rep1sep(gitRemote, listSeparator) ^^ GitRemotesToken
@@ -70,12 +62,20 @@ object ProjectConfigParser extends RegexParsers {
       ProjectDefToken(path, id, propertiesOpt.map({case _ ~ ps ~ _ ⇒ ps}).getOrElse(List()))
   }
   private def projectProperties:Parser[List[ProjectPropertyToken]] = rep(projectProperty)
-  private def projectProperty:Parser[ProjectPropertyToken] = gitModuleDef | activeWhen
+  private def projectProperty:Parser[ProjectPropertyToken] = gitRepositoryDef | activeWhen
+  private def signal:Parser[SignalToken] = hostReachable ~ opt(signalCacheTTL) ^^ {
+    case hr ~ None ⇒ hr
+    case hr ~ Some(duration) ⇒ CachedSignalToken(hr, duration)
+  }
+  private def signalCacheTTL:Parser[DurationToken] = braceOpen ~ cached ~ `for` ~ duration ~ braceClose ^^ {
+    case _ ~ _ ~ _ ~ d ~ _ ⇒ d
+  }
+  private def signals:Parser[List[SignalToken]] = rep1sep(signal, listSeparator)
   private def timeWithUnit:Parser[TimeWithUnitToken] = intNumber ~ timeUnit ^^ {
     case n ~ u ⇒ TimeWithUnitToken(n, u)
   }
 
   private def validateProjectProperties(els:List[ProjectPropertyToken]):Parser[List[ProjectPropertyToken]] =
-    if(els.count(_.isInstanceOf[GitModuleDefToken])>1) err("More than one Git module definition for project.")
+    if(els.count(_.isInstanceOf[GitRepositoryDefToken])>1) err("More than one Git repository definition for project.")
     else success(els)
 }

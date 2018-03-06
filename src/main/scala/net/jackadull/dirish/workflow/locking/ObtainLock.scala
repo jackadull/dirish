@@ -1,38 +1,19 @@
 package net.jackadull.dirish.workflow.locking
 
-import net.jackadull.dirish.io.IODSL._
-import net.jackadull.dirish.io._
-import net.jackadull.dirish.path.{AbsolutePathSpec, CompositeAbsolutePathSpec}
+import net.jackadull.dirish.op.Op.ProxyOp
+import net.jackadull.dirish.op.combinator.FailWith
+import net.jackadull.dirish.op.io._
+import net.jackadull.dirish.op.settings.LockFilePath
+import net.jackadull.dirish.op.{Op, OpError}
+import net.jackadull.dirish.path.CompositeAbsolutePathSpec
 
-import scala.language.higherKinds
-
-object ObtainLock extends IOOp[ObtainLockResult] {
-  def instantiate[I[+_]](io:IO[I]):I[ObtainLockResult] = io.flatMap(io parameterValue LockFilePath) {lockFilePath ⇒
-    op(lockFilePath) instantiate io
-  }
-
-  private def op(lockFilePath:AbsolutePathSpec):IOOp[ObtainLockResult] =
-    IOSeq(Seq(ensureLockFileParentExists(lockFilePath), createLockFile(lockFilePath))) map {
-      case IOSuccess ⇒ LockObtained
-      case TargetFileAlreadyExists ⇒ AlreadyLocked
-      case err:IOError ⇒ CannotObtainLock(err)
-      case unexpected ⇒ CannotObtainLock(CustomIOError(s"Unexpected IO result: $unexpected"))
+object ObtainLock extends ProxyOp[Unit,OpError,LockingStyle] {
+  protected val innerOp:Op[Unit,OpError,LockingStyle] = LockFilePath.get >> {
+    case p@CompositeAbsolutePathSpec(parent, _) ⇒ FileKindInfo(parent) >> {
+      case IsNonExistent ⇒ CreateDirectories(parent) ~> CreateLockFile(p)
+      case IsDirectory ⇒ CreateLockFile(p)
+      case IsRegularFile ⇒ FailWith(NotADirectory(s"Lock file parent $parent is a regular file.", parent toString))
     }
-
-  private def ensureLockFileParentExists(lockFilePath:AbsolutePathSpec):IOOp[IOResult] = lockFilePath match {
-    case CompositeAbsolutePathSpec(lockFileParent, _) ⇒ GetFileInfo(lockFileParent) flatMap {
-      case FileInfoResult(_:DirectoryFileInfo) ⇒ IOBind(IOSuccess)
-      case FileInfoResult(_:NonExistingFileInfo) ⇒ CreateDirectory(lockFileParent)
-      case FileInfoResult(_) ⇒ IOBind(CustomIOError(s"Lock file parent '$lockFileParent' is not a directory."))
-      case err:IOError ⇒ IOBind(err)
-    }
-    case _ ⇒ IOBind(IOSuccess)
+    case p ⇒ CreateLockFile(p)
   }
-
-  private def createLockFile(lockFilePath:AbsolutePathSpec):IOOp[CreateLockFileResult] = CreateLockFile(lockFilePath)
 }
-
-sealed trait ObtainLockResult
-object AlreadyLocked extends ObtainLockResult
-final case class CannotObtainLock(reason:IOError) extends ObtainLockResult
-object LockObtained extends ObtainLockResult

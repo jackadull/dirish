@@ -3,19 +3,29 @@ package net.jackadull.dirish.workflow.main
 import java.nio.charset.StandardCharsets.UTF_8
 import java.util.concurrent.TimeUnit
 
-import net.jackadull.dirish.io._
+import net.jackadull.dirish.op.combinator.{CombinatorStyle, EitherV, FailWith, ResultIn}
+import net.jackadull.dirish.op.git.GitStyle
+import net.jackadull.dirish.op.io._
+import net.jackadull.dirish.op.log.LogStyle
+import net.jackadull.dirish.op.network.NetworkStyle
+import net.jackadull.dirish.op.settings.DirishSettingStyle
+import net.jackadull.dirish.op.signals.SignalStyle
+import net.jackadull.dirish.op.{GenericMessageError, Op, OpError, TestStyle}
 import net.jackadull.dirish.path.{AbsolutePathSpec, CompositeAbsolutePathSpec, UserHomePathSpec}
 import net.jackadull.dirish.workflow.locking.LockGuarded
 import org.scalatest.{FreeSpec, Matchers}
 
 import scala.io.Source
-import scala.language.higherKinds
+import scala.language.{higherKinds, postfixOps}
 
 class UpdateDirectoryStructureTest extends FreeSpec with Matchers {
+  type Style[V[+_,+_]] = CombinatorStyle[V] with DirishSettingStyle[V] with GitStyle[V] with IOStyle[V] with
+    LogStyle[V] with NetworkStyle[V] with SignalStyle[V]
+
   "creating a simple structure with just one project works" in {
-    val io = new TestIO
-    updateToConfig("just1project.dirish", io) should be (IOSuccess)
-    postConditions(io)(
+    val style = new TestStyle
+    updateToConfig[EitherV]("just1project.dirish", style) should be ('right)
+    postConditions[EitherV](style)(
       normalPostUpdateConditions,
       directoryExists(UserHomePathSpec/"p2"/"prv"/"tool"/"dirish"),
       isGitRepository(UserHomePathSpec/"p2"/"prv"/"tool"/"dirish")
@@ -23,10 +33,10 @@ class UpdateDirectoryStructureTest extends FreeSpec with Matchers {
   }
 
   "migrating a one-project structure to another parent (not base) directory works" in {
-    val io = new TestIO
-    updateToConfig("just1project.dirish", io) should be (IOSuccess)
-    updateToConfig("just1project_anotherParent.dirish", io) should be (IOSuccess)
-    postConditions(io)(
+    val io = new TestStyle
+    updateToConfig[EitherV]("just1project.dirish", io) should be ('right)
+    updateToConfig[EitherV]("just1project_anotherParent.dirish", io) should be ('right)
+    postConditions[EitherV](io)(
       normalPostUpdateConditions,
       directoryExists(UserHomePathSpec/"p2"/"prv"/"tool2"/"dirish"),
       isGitRepository(UserHomePathSpec/"p2"/"prv"/"tool2"/"dirish"),
@@ -35,10 +45,10 @@ class UpdateDirectoryStructureTest extends FreeSpec with Matchers {
   }
 
   "a project whose flags are not up does not get cloned" in {
-    val io = new TestIO
+    val io = new TestStyle
     io.setHostReachable("foo.bar.com", reachable = false)
-    updateToConfig("just1project_and1withAFlag.dirish", io) should be (IOSuccess)
-    postConditions(io)(
+    updateToConfig[EitherV]("just1project_and1withAFlag.dirish", io) should be ('right)
+    postConditions[EitherV](io)(
       normalPostUpdateConditions,
       directoryExists(UserHomePathSpec/"p2"/"prv"/"tool"/"dirish"),
       isGitRepository(UserHomePathSpec/"p2"/"prv"/"tool"/"dirish"),
@@ -46,61 +56,61 @@ class UpdateDirectoryStructureTest extends FreeSpec with Matchers {
     )
     io.setHostReachable("foo.bar.com", reachable = false)
     io.clearFlagCache()
-    updateToConfig("just1project_and1withAFlag.dirish", io) should be (IOSuccess)
-    postConditions(io)(
+    updateToConfig[EitherV]("just1project_and1withAFlag.dirish", io) should be ('right)
+    postConditions[EitherV](io)(
       isGitRepository(UserHomePathSpec/"p2"/"prv"/"tool"/"conditional")
     )
   }
 
-  private def directoryExists[I[+_]](path:AbsolutePathSpec):(IO[I]⇒I[()⇒Unit]) = {io ⇒ io.map(io getFileInfo path) {
-    case FileInfoResult(DirectoryFileInfo(_)) ⇒ () ⇒ ()
-    case unexpected ⇒ () ⇒ fail(s"expected directory at $path, but found: $unexpected")
-  }}
-  private def importResource[I[+_]](resourcePath:String, targetPath:AbsolutePathSpec, io:IO[I]):I[IOResult] =
+  private def directoryExists(path:AbsolutePathSpec):Op[Unit,OpError,Style] = FileKindInfo(path) >> {
+    case IsDirectory ⇒ ResultIn.success
+    case unexpected ⇒ FailWith(GenericMessageError(s"expected directory at $path, but found: $unexpected"))
+  }
+  private def importResource[V[+_,+_]](resourcePath:String, targetPath:AbsolutePathSpec, style:Style[V]):Op[Unit,IOError,Style] =
     targetPath match {
-      case UserHomePathSpec ⇒ fail("cannot import into user home directly")
-      case CompositeAbsolutePathSpec(parent, _) ⇒ io.flatMap(io.getFileInfo(parent)) {
-        case FileInfoResult(_:NonExistingFileInfo) ⇒ io.flatMap(io.createDirectory(parent)) {
-          case IOSuccess ⇒ io.saveStringToFile(targetPath, readResource(resourcePath), UTF_8)
-          case unexpected ⇒ fail(s"unexpected: $unexpected")
-        }
-        case FileInfoResult(_:DirectoryFileInfo) ⇒ io.saveStringToFile(targetPath, readResource(resourcePath), UTF_8)
-        case unexpected ⇒ fail(s"unexpected: $unexpected")
+      case UserHomePathSpec ⇒ FailWith(GenericMessageError("cannot import into user home directly"))
+      case CompositeAbsolutePathSpec(parent, _) ⇒ FileKindInfo(parent) >>[Unit,IOError,Style]  {
+        case IsNonExistent ⇒ CreateDirectories(parent) ~> SaveStringToFile(targetPath, readResource(resourcePath), UTF_8)
+        case IsDirectory ⇒ SaveStringToFile(targetPath, readResource(resourcePath), UTF_8)
+        case unexpected ⇒ FailWith(GenericMessageError(s"unexpected: $unexpected"))
       }
     }
-  private def executionResult[B,I[+_]](i:I[B], io:IO[I]):B = {
-    val fut = new java.util.concurrent.CompletableFuture[B]()
-    io.markForExecution(io.map(i)(v ⇒ fut.complete(v)))
+  private def executionResult[R,E,V[+_,+_]](op:Op[R,E,Style], style:Style[V]):Either[E,R] = {
+    val fut = new java.util.concurrent.CompletableFuture[Either[E,R]]()
+    val op2 = op #>> {error ⇒
+      fut complete Left(error); FailWith(error)
+    } >> {result ⇒
+      fut complete Right(result); ResultIn(result)
+    }
+    op2 instantiateIn style
     fut.get(5, TimeUnit.SECONDS)
   }
-  private def fileDoesNotExist[I[+_]](path:AbsolutePathSpec):(IO[I]⇒I[()⇒Unit]) = {io ⇒ io.map(io getFileInfo path) {
-    case FileInfoResult(NonExistingFileInfo(_)) ⇒ () ⇒ ()
-    case unexpected ⇒ () ⇒ fail(s"expected no file at $path, but found: $unexpected")
-  }}
-  private def fileOrDirectoryExists[I[+_]](path:AbsolutePathSpec):(IO[I]⇒I[()⇒Unit]) = {io ⇒ io.map(io getFileInfo path) {
-    case FileInfoResult(_:ExistingFileInfo) ⇒ () ⇒ ()
-    case unexpected ⇒ () ⇒ fail(s"expected file or directory at $path, but found: $unexpected")
-  }}
-  private def isGitRepository[I[+_]](path:AbsolutePathSpec):(IO[I]⇒I[()⇒Unit]) = fileOrDirectoryExists(path/".git")
-  private def normalPostUpdateConditions[I[+_]]:(IO[I]⇒I[()⇒Unit]) = {io ⇒ io.bind(() ⇒ postConditions(io)(
+  private def fileDoesNotExist(path:AbsolutePathSpec):Op[Unit,OpError,Style] = FileKindInfo(path) >> {
+    case IsNonExistent ⇒ ResultIn.success
+    case unexpected ⇒ FailWith(GenericMessageError(s"expected no file at $path, but found: $unexpected"))
+  }
+  private def fileOrDirectoryExists(path:AbsolutePathSpec):Op[Unit,OpError,Style] = FileKindInfo(path) >> {
+    case IsRegularFile | IsDirectory ⇒ ResultIn.success
+    case unexpected ⇒ FailWith(GenericMessageError(s"expected file or directory at $path, but found: $unexpected"))
+  }
+  private def isGitRepository(path:AbsolutePathSpec):Op[Unit,OpError,Style] = fileOrDirectoryExists(path/".git")
+  private def normalPostUpdateConditions:Op[Unit,OpError,Style] = ResultIn(Seq(
     plainFileExists(UserHomePathSpec/".dirish"/"internal_db.dirish"),
     fileDoesNotExist(UserHomePathSpec/".dirish"/"lockfile")
-  ))}
-  private def plainFileExists[I[+_]](path:AbsolutePathSpec):(IO[I]⇒I[()⇒Unit]) = {io ⇒ io.map(io getFileInfo path) {
-    case FileInfoResult(PlainFileInfo(_)) ⇒ () ⇒ ()
-    case unexpected ⇒ () ⇒ fail(s"expected plain file at $path, but found: $unexpected")
-  }}
-  private def postConditions[I[+_]](io:IO[I])(fs:(IO[I]⇒I[()⇒Unit])*) {
-    def combo(a:()⇒Unit, b:()⇒Unit):()⇒Unit = {() ⇒ a(); b()}
-    val v:I[()⇒Unit] = io.aggregate[()⇒Unit,()⇒Unit](fs map (_(io)))({() ⇒ ()})(combo, combo)
-    executionResult(v, io)()
+  )) foreach {(_:Any) ⇒ ResultIn.success}
+  private def plainFileExists(path:AbsolutePathSpec):Op[Unit,OpError,Style] = FileKindInfo(path) >> {
+    case IsRegularFile ⇒ ResultIn.success
+    case unexpected ⇒ FailWith(GenericMessageError(s"expected plain file at $path, but found: $unexpected"))
+  }
+  private def postConditions[V[+_,+_]](style:Style[V])(fs:Op[Unit,OpError,Style]*) {
+    fs.foreach(cond ⇒ executionResult(cond, style) match {
+      case Left(GenericMessageError(msg)) ⇒ fail(msg)
+      case Left(error) ⇒ fail(error toString)
+      case Right(_) ⇒ ()
+    })
   }
   private def readResource(path:String):String = Source.fromResource(path).mkString
-  private def updateToConfig[I[+_]](configFile:String, io:IO[I]):IOResult = {
-    val v = io.flatMap(importResource(configFile, UserHomePathSpec/".dirish"/"config.dirish", io)) {
-      case IOSuccess ⇒ LockGuarded(UpdateDirectoryStructure).instantiate(io)
-      case unexpected ⇒ fail(s"error importing config: $unexpected")
-    }
-    executionResult(v, io)
-  }
+  private def updateToConfig[V[+_,+_]](configFile:String, style:Style[V]):V[Unit,OpError] =
+    (importResource(configFile, UserHomePathSpec/".dirish"/"config.dirish", style) ~>
+      LockGuarded(UpdateDirectoryStructure)) instantiateIn style
 }

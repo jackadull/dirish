@@ -2,8 +2,11 @@ package net.jackadull.dirish.marshalling
 
 import java.util.UUID
 
-import net.jackadull.dirish.io.flags.{CachedIOFlag, IOFlag, IsHostReachableFlag}
+import net.jackadull.dirish.migration.Migration.MigrationStyle
 import net.jackadull.dirish.model.ProjectConfig
+import net.jackadull.dirish.op.network.IsHostReachable
+import net.jackadull.dirish.op.signals.{Signal, SignalCacheConfig}
+import net.jackadull.dirish.op.{Op, OpError}
 import net.jackadull.dirish.path.{AbsolutePathSpec, PathElementSpec, RelativePathSpec, UserHomePathSpec}
 
 import scala.annotation.tailrec
@@ -77,24 +80,24 @@ object TokenToProjectConfig {
   private def withProjectProperty(projectID:UUID, prop:ProjectPropertyToken, projectConfig:ProjectConfig):Either[ConfigSemanticError,ProjectConfig] =
     prop match {
       case p:ActiveWhenToken ⇒ withActiveWhen(projectID, p, projectConfig)
-      case p:GitModuleDefToken ⇒ withGitModule(projectID, p, projectConfig)
+      case p:GitRepositoryDefToken ⇒ withGitRepository(projectID, p, projectConfig)
     }
 
-  private def withGitModule(projectID:UUID, git:GitModuleDefToken, projectConfig:ProjectConfig):Either[ConfigSemanticError,ProjectConfig] = {
+  private def withGitRepository(projectID:UUID, git:GitRepositoryDefToken, projectConfig:ProjectConfig):Either[ConfigSemanticError,ProjectConfig] = {
     val GitRemoteToken(GitRemoteNameToken(firstRemoteName), GitRemoteURIToken(firstRemoteURI)) = git.remotesToken.remoteTokens.head
-    projectConfig.addGitModule(projectID, (firstRemoteName, firstRemoteURI)) match {
-      case Right(projectConfig2) ⇒ withGitModuleRemotes(projectID, git.remotesToken.remoteTokens.tail, projectConfig2)
+    projectConfig.addGitRepository(projectID, (firstRemoteName, firstRemoteURI)) match {
+      case Right(projectConfig2) ⇒ withGitRepositoryRemotes(projectID, git.remotesToken.remoteTokens.tail, projectConfig2)
       case Left(err) ⇒ Left(err)
     }
   }
 
-  private def withGitModuleRemotes(projectID:UUID, remotes:Seq[GitRemoteToken], projectConfig:ProjectConfig):Either[ConfigSemanticError,ProjectConfig] =
+  private def withGitRepositoryRemotes(projectID:UUID, remotes:Seq[GitRemoteToken], projectConfig:ProjectConfig):Either[ConfigSemanticError,ProjectConfig] =
     remotes match {
       case Seq() ⇒ Right(projectConfig)
       case Seq(fst,rst@_*) ⇒
         val GitRemoteToken(GitRemoteNameToken(remoteName), GitRemoteURIToken(remoteURI)) = fst
-        projectConfig.addGitModuleRemote(projectID, (remoteName, remoteURI)) match {
-          case Right(projectConfig2) ⇒ withGitModuleRemotes(projectID, rst, projectConfig2)
+        projectConfig.addGitRepositoryRemote(projectID, (remoteName, remoteURI)) match {
+          case Right(projectConfig2) ⇒ withGitRepositoryRemotes(projectID, rst, projectConfig2)
           case Left(err) ⇒ Left(err)
         }
     }
@@ -106,13 +109,13 @@ object TokenToProjectConfig {
     }
 
   private def withActiveWhen(projectID:UUID, activeWhenToken:ActiveWhenToken, projectConfig:ProjectConfig):Either[ConfigSemanticError,ProjectConfig] =
-    activeWhenToken.flags.foldLeft[Either[ConfigSemanticError,ProjectConfig]](Right(projectConfig)) {
-      case (Right(pc), fl) ⇒ withActiveFlag(projectID, fl, pc)
+    activeWhenToken.signals.foldLeft[Either[ConfigSemanticError,ProjectConfig]](Right(projectConfig)) {
+      case (Right(pc), sig) ⇒ withActiveSignal(projectID, sig, pc)
       case (Left(err), _) ⇒ Left(err)
     }
 
-  private def withActiveFlag(projectID:UUID, flag:FlagToken, projectConfig:ProjectConfig):Either[ConfigSemanticError,ProjectConfig] =
-    projectConfig.addProjectActiveFlag(projectID, toIOFlag(flag))
+  private def withActiveSignal(projectID:UUID, signal:SignalToken, projectConfig:ProjectConfig):Either[ConfigSemanticError,ProjectConfig] =
+    projectConfig.addProjectActiveSignal(projectID, toSignal(signal))
 
   private def toAbsolutePathSpec(elements:PathElementsToken):Either[ConfigSemanticError,AbsolutePathSpec] = elements.elements match {
     case Seq(PathElementToken("$HOME"), rst@_*) ⇒ Right(rst.foldLeft[AbsolutePathSpec](UserHomePathSpec) {_ / _.name})
@@ -144,9 +147,17 @@ object TokenToProjectConfig {
     }
   }
 
-  private def toIOFlag(token:FlagToken):IOFlag = token match {
-    case CachedFlagToken(uncached, ttl) ⇒ CachedIOFlag(toIOFlag(uncached), toFiniteDuration(ttl))
-    case HostReachableToken(hostNameToken, within) ⇒ IsHostReachableFlag(hostNameToken hostName, toFiniteDuration(within).toMillis.toInt)
+  // TODO restructure the tokens so they better represent the signal structure
+  private def toSignal(token:SignalToken):Signal[Boolean,OpError,MigrationStyle] = token match {
+    case CachedSignalToken(uncached, ttl) ⇒
+      val duration = toFiniteDuration(ttl)
+      Signal(toSignalOp(uncached), SignalCacheConfig(duration, duration))
+    case _ ⇒ sys error s"expected CachedSignalToken instead of $token"
+  }
+
+  private def toSignalOp(op:SignalToken):Op[Boolean,OpError,MigrationStyle] = op match {
+    case HostReachableToken(hostNameToken, within) ⇒ IsHostReachable(hostNameToken hostName, toFiniteDuration(within).toMillis.toInt)
+    case _ ⇒ sys error s"unexpected signal op: $op"
   }
 
   private def toFiniteDuration(durationToken:DurationToken):FiniteDuration =

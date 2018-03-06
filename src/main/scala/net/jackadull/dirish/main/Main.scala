@@ -1,13 +1,13 @@
 package net.jackadull.dirish.main
 
-import net.jackadull.dirish.io.{BlockingIO, IOError}
+import net.jackadull.dirish.op.BlockingEitherStyles
+import net.jackadull.dirish.op.combinator.FailWith
 import net.jackadull.dirish.workflow.locking.LockGuarded
 import net.jackadull.dirish.workflow.main.UpdateDirectoryStructure
 
 object Main extends App {
-  val io = BlockingIO
-  io.markForExecution(io.map(LockGuarded(UpdateDirectoryStructure).instantiate(io)) {
-    case err:IOError ⇒ println(s"Error: $err")
-    case _ ⇒ ()
-  })
+  val mainOp = LockGuarded(UpdateDirectoryStructure) #>> {
+    err ⇒ println(s"Error: $err"); FailWith(err)
+  }
+  mainOp instantiateIn BlockingEitherStyles
 }

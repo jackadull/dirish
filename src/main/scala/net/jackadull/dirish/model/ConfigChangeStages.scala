@@ -3,7 +3,7 @@ package net.jackadull.dirish.model
 import java.util.UUID
 
 trait ConfigChangeStages extends ConfigChangeStageWithNextStage {
-  override def nextStage:GitModuleRemotesRemovedStage
+  override def nextStage:GitRemotesRemovedStage
 }
 
 // TODO add helpers for detecting dependencies and/or circularities
@@ -13,20 +13,20 @@ sealed trait ConfigChangeStageWithNextStage extends ConfigChangeStage {
   def nextStage:ConfigChangeStage
 }
 
-trait GitModuleRemotesRemovedStage extends ConfigChangeStageWithNextStage {
-  def gitModuleRemotesRemoved:Set[GitModuleRemoteRemovedSpec]
-  override def nextStage:GitModulesRemovedStage
-  def willModuleBeRemoved(projectID:UUID):Boolean =
-    nextStage.gitModulesRemoved.exists(_.projectID==projectID)
+trait GitRemotesRemovedStage extends ConfigChangeStageWithNextStage {
+  def gitRemotesRemoved:Set[GitRemoteRemovedSpec]
+  override def nextStage:GitRepositoriesRemovedStage
+  def willRepositoryBeRemoved(projectID:UUID):Boolean =
+    nextStage.gitRepositoriesRemoved.exists(_.projectID==projectID)
 }
-trait GitModulesRemovedStage extends ConfigChangeStageWithNextStage {
-  def gitModulesRemoved:Set[GitModuleRemovedSpec]
-  override def nextStage:ProjectActiveFlagsRemovedStage
+trait GitRepositoriesRemovedStage extends ConfigChangeStageWithNextStage {
+  def gitRepositoriesRemoved:Set[GitRepositoryRemovedSpec]
+  override def nextStage:ProjectActiveSignalsRemovedStage
   def willProjectBeRemoved(projectID:UUID):Boolean =
     nextStage.willProjectBeRemoved(projectID)
 }
-trait ProjectActiveFlagsRemovedStage extends ConfigChangeStageWithNextStage {
-  def projectActiveFlagsRemoved:Set[ProjectActiveFlagRemovedSpec]
+trait ProjectActiveSignalsRemovedStage extends ConfigChangeStageWithNextStage {
+  def projectActiveSignalsRemoved:Set[ProjectActiveSignalRemovedSpec]
   override def nextStage:ProjectsRemovedStage
   def willProjectBeRemoved(projectID:UUID):Boolean =
     nextStage.projectsRemoved.exists(_.id==projectID)
@@ -39,10 +39,10 @@ trait ProjectsRemovedStage extends ConfigChangeStageWithNextStage {
 }
 trait BaseDirectoriesRemovedStage extends ConfigChangeStageWithNextStage {
   def baseDirectoriesRemoved:Set[BaseDirectoryRemovedSpec]
-  override def nextStage:GitModuleFirstRemotesChangedStage
+  override def nextStage:GitFirstRemotesChangedStage
 }
-trait GitModuleFirstRemotesChangedStage extends ConfigChangeStageWithNextStage {
-  def gitModuleFirstRemotesChanged:Set[GitModuleFirstRemoteChangedSpec]
+trait GitFirstRemotesChangedStage extends ConfigChangeStageWithNextStage {
+  def gitFirstRemotesChanged:Set[GitFirstRemoteChangedSpec]
   override def nextStage:ProjectsMovedStage
 }
 trait ProjectsMovedStage extends ConfigChangeStageWithNextStage {
@@ -59,16 +59,16 @@ trait BaseDirectoriesAddedStage extends ConfigChangeStageWithNextStage {
 }
 trait ProjectsAddedStage extends ConfigChangeStageWithNextStage {
   def projectsAdded:Set[ProjectAddedSpec]
-  override def nextStage:ProjectActiveFlagsAddedStage
+  override def nextStage:ProjectActiveSignalsAddedStage
 }
-trait ProjectActiveFlagsAddedStage extends ConfigChangeStageWithNextStage {
-  def projectActiveFlagsAdded:Set[ProjectActiveFlagAddedSpec]
-  override def nextStage:GitModulesAddedStage
+trait ProjectActiveSignalsAddedStage extends ConfigChangeStageWithNextStage {
+  def projectActiveSignalsAdded:Set[ProjectActiveSignalAddedSpec]
+  override def nextStage:GitRepositoriesAddedStage
 }
-trait GitModulesAddedStage extends ConfigChangeStageWithNextStage {
-  def gitModulesAdded:Set[GitModuleAddedSpec]
-  override def nextStage:GitModuleRemotesAddedStage
+trait GitRepositoriesAddedStage extends ConfigChangeStageWithNextStage {
+  def gitRepositoriesAdded:Set[GitRepositoryAddedSpec]
+  override def nextStage:GitRemotesAddedStage
 }
-trait GitModuleRemotesAddedStage extends ConfigChangeStage {
-  def gitModuleRemotesAdded:Set[GitModuleRemoteAddedSpec]
+trait GitRemotesAddedStage extends ConfigChangeStage {
+  def gitRemotesAdded:Set[GitRemoteAddedSpec]
 }

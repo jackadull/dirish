@@ -2,8 +2,11 @@ package net.jackadull.dirish.marshalling
 
 import java.util.UUID
 
-import net.jackadull.dirish.io.flags.{CachedIOFlag, IOFlag, IsHostReachableFlag}
+import net.jackadull.dirish.migration.Migration.MigrationStyle
 import net.jackadull.dirish.model.ProjectConfig
+import net.jackadull.dirish.op.network.IsHostReachable
+import net.jackadull.dirish.op.signals.Signal
+import net.jackadull.dirish.op.{Op, OpError}
 import net.jackadull.dirish.path._
 
 import scala.concurrent.duration.Duration
@@ -26,25 +29,29 @@ object ProjectConfigToToken {
   )
 
   private def toProjectProperties(projectID:UUID, projectConfig:ProjectConfig):Seq[ProjectPropertyToken] =
-    toActiveWhenTokenOpt(projectID, projectConfig).toSeq ++ toGitModuleDefOpt(projectID, projectConfig).toSeq
+    toActiveWhenTokenOpt(projectID, projectConfig).toSeq ++ toGitRepositoryDefOpt(projectID, projectConfig).toSeq
 
   private def toActiveWhenTokenOpt(projectID:UUID, projectConfig:ProjectConfig):Option[ActiveWhenToken] = {
-    val activeFlags = projectConfig.activeFlagsOfProject(projectID)
-    if(activeFlags isEmpty) None
-    else Some(ActiveWhenToken(activeFlags.toList.map(toFlag)))
+    val activeSignals = projectConfig.activeSignals(projectID)
+    if(activeSignals isEmpty) None
+    else Some(ActiveWhenToken(activeSignals.toList.map(toSignal)))
   }
 
-  private def toFlag(flag:IOFlag):FlagToken = flag match {
-    case CachedIOFlag(uncached, ttl) ⇒ CachedFlagToken(toFlag(uncached), toDuration(ttl))
-    case IsHostReachableFlag(host, timeoutMillis) ⇒ HostReachableToken(HostNameToken(host), DurationToken(Seq(TimeWithUnitToken(timeoutMillis, "ms"))))
+  private def toSignal(signal:Signal[Boolean,OpError,MigrationStyle]):SignalToken =
+    CachedSignalToken(toSignal(signal get), toDuration(signal.caching cacheDuration))
+
+  private def toSignal(op:Op[Boolean,OpError,MigrationStyle]):SignalToken = op match {
+    case IsHostReachable(host, timeoutMillis) ⇒
+      HostReachableToken(HostNameToken(host), DurationToken(Seq(TimeWithUnitToken(timeoutMillis, "ms"))))
+    case _ ⇒ sys error s"unknown signal operation: $op"
   }
 
   private def toDuration(duration:Duration):DurationToken =
     DurationToken(Seq(TimeWithUnitToken(duration.toMillis.toInt, "ms")))
 
-  private def toGitModuleDefOpt(projectID:UUID, projectConfig:ProjectConfig):Option[GitModuleDefToken] =
+  private def toGitRepositoryDefOpt(projectID:UUID, projectConfig:ProjectConfig):Option[GitRepositoryDefToken] =
     projectConfig.projectFirstRemote(projectID) map {
-      case (firstRemoteName, firstRemoteURI) ⇒ GitModuleDefToken(GitRemotesToken(
+      case (firstRemoteName, firstRemoteURI) ⇒ GitRepositoryDefToken(GitRemotesToken(
         List(GitRemoteToken(GitRemoteNameToken(firstRemoteName), GitRemoteURIToken(firstRemoteURI))) ++
           additionalGitRemotes(projectID, projectConfig)
       ))

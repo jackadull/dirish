@@ -2,8 +2,10 @@ package net.jackadull.dirish.model
 
 import java.util.UUID
 
-import net.jackadull.dirish.io.flags.IOFlag
 import net.jackadull.dirish.marshalling.ConfigSemanticError
+import net.jackadull.dirish.migration.Migration.MigrationStyle
+import net.jackadull.dirish.op.OpError
+import net.jackadull.dirish.op.signals.Signal
 import net.jackadull.dirish.path.{AbsolutePathSpec, RelativePathSpec}
 
 sealed trait ConfigChangeError extends ConfigSemanticError
@@ -11,38 +13,38 @@ sealed trait ConfigChangeError extends ConfigSemanticError
 sealed trait BaseDirectoryAddError extends ConfigChangeError
 sealed trait BaseDirectoryMoveError extends ConfigChangeError
 sealed trait BaseDirectoryRemoveError extends ConfigChangeError
-sealed trait GitModuleAddError extends ConfigChangeError
-sealed trait GitModuleAddRemoteError extends ConfigChangeError
-sealed trait GitModuleChangeFirstRemoteError extends ConfigChangeError
-sealed trait GitModuleRemoveError extends ConfigChangeError
-sealed trait GitModuleRemoveRemoteError extends ConfigChangeError
-sealed trait ProjectActiveFlagAddError extends ConfigChangeError
-sealed trait ProjectActiveFlagRemoveError extends ConfigChangeError
+sealed trait GitAddRemoteError extends ConfigChangeError
+sealed trait GitChangeFirstRemoteError extends ConfigChangeError
+sealed trait GitRepositoryAddError extends ConfigChangeError
+sealed trait GitRemoveRemoteError extends ConfigChangeError
+sealed trait GitRepositoryRemoveError extends ConfigChangeError
+sealed trait ProjectActiveSignalAddError extends ConfigChangeError
+sealed trait ProjectActiveSignalRemoveError extends ConfigChangeError
 sealed trait ProjectAddError extends ConfigChangeError
 sealed trait ProjectMoveError extends ConfigChangeError
 sealed trait ProjectRemoveError extends ConfigChangeError
 
+final case class AdditionalGitRemoteAlreadyPresent(projectID:UUID, remote:(String,String)) extends GitAddRemoteError with GitChangeFirstRemoteError
+final case class AdditionalGitRemoteWithNameAlreadyPresent(projectID:UUID, remoteName:String) extends GitAddRemoteError with GitChangeFirstRemoteError
 final case class BaseDirectoryAlreadyHasPath(id:UUID, path:AbsolutePathSpec) extends BaseDirectoryMoveError
 final case class BaseDirectoryNotFoundForID(id:UUID) extends BaseDirectoryMoveError with BaseDirectoryRemoveError with ProjectAddError with ProjectMoveError
 final case class BaseDirectoryStillReferencedByProject(id:UUID) extends BaseDirectoryRemoveError
 final case class BaseDirectoryWithCrossingPathAlreadyExists(path:AbsolutePathSpec, alreadyExistingPath:AbsolutePathSpec) extends BaseDirectoryAddError with BaseDirectoryMoveError
 final case class BaseDirectoryWithSameIDAlreadyExists(id:UUID) extends BaseDirectoryAddError
 final case class BaseDirectoryWithSamePathAlreadyExists(path:AbsolutePathSpec) extends BaseDirectoryAddError
-final case class CannotRemoveGitModuleFirstRemote(projectID:UUID, remoteName:String) extends GitModuleRemoveRemoteError
-final case class GitModuleAlreadyHasAdditionalRemote(projectID:UUID, remote:(String,String)) extends GitModuleAddRemoteError with GitModuleChangeFirstRemoteError
-final case class GitModuleAlreadyHasAdditionalRemoteNamed(projectID:UUID, remoteName:String) extends GitModuleAddRemoteError with GitModuleChangeFirstRemoteError
-final case class GitModuleAlreadyHasFirstRemote(projectID:UUID, firstRemote:(String,String)) extends GitModuleAddRemoteError with GitModuleChangeFirstRemoteError
-final case class GitModuleAlreadyHasFirstRemoteNamed(projectID:UUID, remoteName:String) extends GitModuleAddRemoteError
-final case class GitModuleNotFoundForProjectID(id:UUID) extends GitModuleAddRemoteError with GitModuleChangeFirstRemoteError with GitModuleRemoveError with GitModuleRemoveRemoteError
-final case class GitModuleRemoteNotFoundForName(projectID:UUID, remoteName:String) extends GitModuleRemoveRemoteError
-final case class GitModuleStillHasAdditionalRemotes(projectID:UUID) extends GitModuleRemoveError
-final case class ProjectActiveFlagAlreadyPresent(projectID:UUID, flag:IOFlag) extends ProjectActiveFlagAddError
-final case class ProjectActiveFlagNotFound(projectID:UUID, flag:IOFlag) extends ProjectActiveFlagRemoveError
-final case class ProjectAlreadyHasGitModule(id:UUID) extends GitModuleAddError
+final case class CannotRemoveGitFirstRemote(projectID:UUID, remoteName:String) extends GitRemoveRemoteError
+final case class FirstRemoteWithNameAlreadyPresent(projectID:UUID, remoteName:String) extends GitAddRemoteError
+final case class GitRemoteNotFoundForName(projectID:UUID, remoteName:String) extends GitRemoveRemoteError
+final case class GitRepositoryNotFoundForProjectID(id:UUID) extends GitAddRemoteError with GitChangeFirstRemoteError with GitRepositoryRemoveError with GitRemoveRemoteError
+final case class GitRepositoryStillHasAdditionalRemotes(projectID:UUID) extends GitRepositoryRemoveError
+final case class FirstGitRemoteAlreadyPresent(projectID:UUID, firstRemote:(String,String)) extends GitAddRemoteError with GitChangeFirstRemoteError
+final case class ProjectActiveSignalAlreadyPresent(projectID:UUID, signal:Signal[Boolean,OpError,MigrationStyle]) extends ProjectActiveSignalAddError
+final case class ProjectActiveSignalNotFound(projectID:UUID, signal:Signal[Boolean,OpError,MigrationStyle]) extends ProjectActiveSignalRemoveError
+final case class ProjectAlreadyHasGitRepository(id:UUID) extends GitRepositoryAddError
 final case class ProjectAlreadyHasPath(projectID:UUID, baseDirectoryID:UUID, localPath:RelativePathSpec) extends ProjectMoveError
-final case class ProjectNotFoundForID(id:UUID) extends GitModuleAddError with GitModuleAddRemoteError with GitModuleChangeFirstRemoteError with GitModuleRemoveError with GitModuleRemoveRemoteError with ProjectActiveFlagAddError with ProjectActiveFlagRemoveError with ProjectMoveError with ProjectRemoveError
-final case class ProjectStillReferencedByActiveFlag(id:UUID) extends ProjectRemoveError
-final case class ProjectStillReferencedByGitModule(id:UUID) extends ProjectRemoveError
+final case class ProjectNotFoundForID(id:UUID) extends GitRepositoryAddError with GitAddRemoteError with GitChangeFirstRemoteError with GitRepositoryRemoveError with GitRemoveRemoteError with ProjectActiveSignalAddError with ProjectActiveSignalRemoveError with ProjectMoveError with ProjectRemoveError
+final case class ProjectStillReferencedByActiveSignal(id:UUID) extends ProjectRemoveError
+final case class ProjectStillReferencedByGitRepository(id:UUID) extends ProjectRemoveError
 final case class ProjectWithCrossingPathAlreadyExists(projectID:UUID, baseDirectoryID:UUID, localPath:RelativePathSpec) extends ProjectAddError with ProjectMoveError
 final case class ProjectWithSameIDAlreadyExists(id:UUID) extends ProjectAddError
 final case class ProjectWithSamePathAlreadyExists(projectID:UUID, baseDirectoryID:UUID, localPath:RelativePathSpec) extends ProjectAddError with ProjectMoveError

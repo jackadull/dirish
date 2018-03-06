@@ -2,39 +2,27 @@ package net.jackadull.dirish.workflow.storage
 
 import java.nio.charset.StandardCharsets.UTF_8
 
-import net.jackadull.dirish.io.IODSL._
-import net.jackadull.dirish.io._
 import net.jackadull.dirish.marshalling.{ProjectConfigToToken, RenderProjectConfig}
 import net.jackadull.dirish.model.ProjectConfig
+import net.jackadull.dirish.op.Op.ProxyOp
+import net.jackadull.dirish.op.combinator.{FailWith, ResultIn}
+import net.jackadull.dirish.op.io._
+import net.jackadull.dirish.op.settings.InternalDBFilePath
+import net.jackadull.dirish.op.{Op, OpError}
 import net.jackadull.dirish.path.{AbsolutePathSpec, CompositeAbsolutePathSpec}
 
-import scala.language.higherKinds
+import scala.language.postfixOps
 
-final case class SaveInternalDB(db:ProjectConfig) extends IOOp[SaveInternalDBResult] {
-  def instantiate[I[+_]](io:IO[I]):I[SaveInternalDBResult] = internal instantiate io
+final case class SaveInternalDB(db:ProjectConfig) extends ProxyOp[Unit,OpError,StorageStyle] {
+  protected def innerOp:Op[Unit,OpError,StorageStyle] = InternalDBFilePath.get >>[Unit,OpError,StorageStyle] {path ⇒
+    ensureParentDirectoryExists(path) ~> SaveStringToFile(path, RenderProjectConfig(ProjectConfigToToken(db)), UTF_8)}
 
-  private val internal:IOOp[SaveInternalDBResult] = ParameterValue(InternalDBFilePath) flatMap {path =>
-    IOSeq(Seq(ensureParentExists(path), writeFile(path))) map {
-      case IOSuccess ⇒ InternalDBSaved
-      case err:IOError ⇒ CannotSaveInternalDB(err)
-      case anythingElse ⇒ CannotSaveInternalDB(CustomIOError(s"Unexpected IO result: $anythingElse"))
+  private def ensureParentDirectoryExists(path:AbsolutePathSpec):Op[Unit,IOError,StorageStyle] = path match {
+    case CompositeAbsolutePathSpec(parent, _) ⇒ FileKindInfo(parent) >> {
+      case IsNonExistent ⇒ CreateDirectories(parent)
+      case IsDirectory ⇒ ResultIn success
+      case IsRegularFile ⇒ FailWith(NotADirectory(s"Internal DB file parent is not a directory.", parent toString))
     }
+    case _ ⇒ ResultIn success
   }
-
-  private def ensureParentExists(path:AbsolutePathSpec):IOOp[IOResult] = path match {
-    case CompositeAbsolutePathSpec(parent, _) ⇒ GetFileInfo(parent) flatMap {
-      case FileInfoResult(_:DirectoryFileInfo) ⇒ IOBind(IOSuccess)
-      case FileInfoResult(_:NonExistingFileInfo) ⇒ CreateDirectory(parent)
-      case FileInfoResult(_) ⇒ IOBind(CustomIOError(s"Internal DB file parent '$parent' is not a directory."))
-      case err:IOError ⇒ IOBind(err)
-    }
-    case _ ⇒ IOBind(IOSuccess)
-  }
-
-  private def writeFile(path:AbsolutePathSpec):IOOp[IOResult] =
-    SaveStringToFile(path, RenderProjectConfig(ProjectConfigToToken(db)), UTF_8)
 }
-
-sealed trait SaveInternalDBResult
-final case class CannotSaveInternalDB(error:IOError) extends SaveInternalDBResult
-object InternalDBSaved extends SaveInternalDBResult
