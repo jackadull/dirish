@@ -16,6 +16,9 @@ object BraceCloseToken extends ProjectConfigToken
 object BraceOpenToken extends ProjectConfigToken
 object CachedToken extends ProjectConfigToken
 final case class CachedSignalToken(uncached:SignalToken, timeToLive:DurationToken) extends SignalToken
+final case class CanConnectToHostToken(hostNameToken:HostNameToken, portToken:PortToken, within:DurationToken) extends SignalToken
+object CanToken extends ProjectConfigToken
+object ConnectToken extends ProjectConfigToken
 final case class DirectoryDefToken(directory:PathElementsToken, contents:List[DirectoryContentsToken]) extends DirectoryContentsToken
 final case class DurationToken(elements:Seq[TimeWithUnitToken]) extends ProjectConfigToken
 object ForToken extends ProjectConfigToken
@@ -32,10 +35,13 @@ object ListSeparatorToken extends ProjectConfigToken
 object PathDelimiterToken extends ProjectConfigToken
 final case class PathElementsToken(elements:List[PathElementToken]) extends ProjectConfigToken
 final case class PathElementToken(name:String) extends ProjectConfigToken
+object PortSeparatorToken extends ProjectConfigToken
+final case class PortToken(portNumber:Int) extends ProjectConfigToken
 final case class ProjectConfigRootToken(baseDirs:List[BaseDirDefToken]) extends ProjectConfigToken
 final case class ProjectDefToken(path:PathElementsToken, idToken:UUIDToken, properties:Seq[ProjectPropertyToken]) extends DirectoryContentsToken
 object ReachableToken extends ProjectConfigToken
 final case class TimeWithUnitToken(time:Int, unit:String) extends ProjectConfigToken
+object ToToken extends ProjectConfigToken
 object UUIDSeparatorToken extends ProjectConfigToken
 final case class UUIDToken(uuid:UUID) extends ProjectConfigToken
 object WhenToken extends ProjectConfigToken

@@ -11,12 +11,16 @@ object RenderProjectConfig {
   val braceClose:String = ")"
   val braceOpen:String = "("
   val cached:String = "cached"
+  val can:String = "can"
+  val connect:String = "connect"
   val `for`:String = "for"
   val gitRepository:String = "git"
   val host:String = "host"
   val listSeparator:String = ","
   val pathDelimiter:String = "/"
+  val portSeparator:String = ":"
   val reachable:String = "reachable"
+  val to:String = "to"
   val uuidSeparator:String = ":"
   val when:String = "when"
   val within:String = "within"
@@ -29,6 +33,8 @@ object RenderProjectConfig {
     s"$indent$active $when $blockOpen\n${token.signals.map(f ⇒ signal(f, indent deeper)).mkString}$indent$blockClose\n"
   private def baseDirDef(baseDirDef:BaseDirDefToken, indent:Indent):String =
     s"$indent${pathElements(baseDirDef directory)}$uuidSeparator ${uuid(baseDirDef id)} $blockOpen\n${baseDirDef.contents map {directoryContents(_, indent deeper)} mkString}$indent$blockClose\n"
+  private def canConnectToHost(token:CanConnectToHostToken, indent:Indent, additions:Seq[String]):String =
+    s"$indent$can $connect $to ${hostName(token hostNameToken)}$portSeparator${port(token portToken)} $within ${duration(token within)}${additions.map(a ⇒ s" $a").mkString}\n"
   private def directoryContents(contentsToken:DirectoryContentsToken, indent:Indent):String = contentsToken match {
     case t:ActiveWhenToken ⇒ activeWhen(t, indent)
     case t:DirectoryDefToken ⇒ directoryDef(t, indent)
@@ -48,6 +54,7 @@ object RenderProjectConfig {
     s"$indent$host ${hostName(token hostNameToken)} $reachable $within ${duration(token within)}${additions.map(a ⇒ s" $a").mkString}\n"
   private def pathElement(pathElement:PathElementToken):String = pathElement.name
   private def pathElements(pathElements:PathElementsToken):String = pathElements.elements map pathElement mkString pathDelimiter
+  private def port(port:PortToken):String = port.portNumber.toString
   private def projectConfigRoot(projectConfigRoot:ProjectConfigRootToken, indent:Indent):String =
     projectConfigRoot.baseDirs map {baseDirDef(_, indent)} mkString "\n"
   private def projectDef(projectDef:ProjectDefToken, indent:Indent):String =
@@ -63,6 +70,7 @@ object RenderProjectConfig {
   }
   private def signal(token:SignalToken, indent:Indent, additions:Seq[String]=Seq()):String = token match {
     case CachedSignalToken(uncached, ttl) ⇒ signal(uncached, indent, additions :+ s"$braceOpen$cached ${`for`} ${duration(ttl)}$braceClose")
+    case t:CanConnectToHostToken ⇒ canConnectToHost(t, indent, additions)
     case t:HostReachableToken ⇒ hostReachable(t, indent, additions)
   }
   private def timeWithUnit(token:TimeWithUnitToken):String = s"${token time}${token unit}"

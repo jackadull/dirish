@@ -1,7 +1,6 @@
 # Dirish: plan
 
 * Introduce actual parallelism within stages, see: MigrationStep2
-* Add a new signal 'can connect to host:port within x' because 'host x is reachable' does not suffice for VPN detection
 * Fix the FlatMap optimization
 * Check for deviations between config and reality
 * Better test coverage
@@ -36,3 +35,4 @@
 * Some way to re-upload all the projects back to a GitLab
 * Maybe use [Decline](http://ben.kirw.in/decline/) for command-line arguments
 * Rename the project; maybe something akin to "homeostasis"?
+* Allow comments in config files

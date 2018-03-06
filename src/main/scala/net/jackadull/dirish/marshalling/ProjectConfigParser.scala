@@ -16,6 +16,8 @@ object ProjectConfigParser extends RegexParsers {
 
   private def active = RenderProjectConfig.active ^^ {_ ⇒ ActiveToken}
   private def cached = RenderProjectConfig.cached ^^ {_ ⇒ CachedToken}
+  private def can = RenderProjectConfig.can ^^ {_ ⇒ CanToken}
+  private def connect = RenderProjectConfig.connect ^^ {_ ⇒ ConnectToken}
   private def blockClose = RenderProjectConfig.blockClose ^^ {_ ⇒ BlockCloseToken}
   private def blockOpen = RenderProjectConfig.blockOpen ^^ {_ ⇒ BlockOpenToken}
   private def braceClose = RenderProjectConfig.braceClose ^^ {_ ⇒ BraceCloseToken}
@@ -29,7 +31,9 @@ object ProjectConfigParser extends RegexParsers {
   private def listSeparator = RenderProjectConfig.listSeparator ^^ {_ ⇒ ListSeparatorToken}
   private def pathElement = """[^/\s:{]+""".r ^^ PathElementToken
   private def pathDelimiter = RenderProjectConfig.pathDelimiter ^^ {_ ⇒ PathDelimiterToken}
+  private def portSeparator = RenderProjectConfig.portSeparator ^^ {_ ⇒ PortSeparatorToken}
   private def reachable = RenderProjectConfig.reachable ^^ {_ ⇒ ReachableToken}
+  private def to = RenderProjectConfig.to ^^ {_ ⇒ ToToken}
   private def uuidSeparator = RenderProjectConfig.uuidSeparator ^^ {_ ⇒ UUIDSeparatorToken}
   private def uuid =  """[a-fA-F0-9]{8}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{12}""".r ^^ {str ⇒ UUIDToken(UUID fromString str)}
   private def when = RenderProjectConfig.when ^^ {_ ⇒ WhenToken}
@@ -42,6 +46,9 @@ object ProjectConfigParser extends RegexParsers {
     case path ~ _ ~ id ~ _ ~ contents ~ _ ⇒ BaseDirDefToken(path, id, contents)
   }
   private def baseDirDefs:Parser[List[BaseDirDefToken]] = rep(baseDirDef)
+  private def canConnectToHost:Parser[CanConnectToHostToken] = can ~ connect ~ to ~ hostName ~ portSeparator ~ port ~ within ~ duration ^^ {
+    case _ ~ _ ~ _ ~ host ~ _ ~ port ~ _ ~ duration ⇒ CanConnectToHostToken(host, port, duration)
+  }
   private def directoryContents:Parser[DirectoryContentsToken] = activeWhen | projectDef | directoryDef
   private def directoryContentsList:Parser[List[DirectoryContentsToken]] = rep(directoryContents)
   private def directoryDef:Parser[DirectoryDefToken] = pathElements ~ blockOpen ~ directoryContentsList ~ blockClose ^^ {
@@ -57,13 +64,14 @@ object ProjectConfigParser extends RegexParsers {
     case _ ~ hn ~ _ ~ _ ~ d ⇒ HostReachableToken(hn, d)
   }
   private def pathElements:Parser[PathElementsToken] = rep1sep(pathElement, pathDelimiter) ^^ PathElementsToken
+  private def port:Parser[PortToken] = intNumber ^^ PortToken
   private def projectDef:Parser[ProjectDefToken] = pathElements ~ uuidSeparator ~ uuid ~ opt(blockOpen ~ (projectProperties >> validateProjectProperties) ~ blockClose) ^^ {
     case path ~ _ ~ id ~ propertiesOpt ⇒
       ProjectDefToken(path, id, propertiesOpt.map({case _ ~ ps ~ _ ⇒ ps}).getOrElse(List()))
   }
   private def projectProperties:Parser[List[ProjectPropertyToken]] = rep(projectProperty)
   private def projectProperty:Parser[ProjectPropertyToken] = gitRepositoryDef | activeWhen
-  private def signal:Parser[SignalToken] = hostReachable ~ opt(signalCacheTTL) ^^ {
+  private def signal:Parser[SignalToken] = (hostReachable | canConnectToHost) ~ opt(signalCacheTTL) ^^ {
     case hr ~ None ⇒ hr
     case hr ~ Some(duration) ⇒ CachedSignalToken(hr, duration)
   }

@@ -8,7 +8,7 @@ import net.jackadull.dirish.op.git.{GenericGitError, GitStyle}
 import net.jackadull.dirish.op.io._
 import net.jackadull.dirish.op.log.Log.OpLogLevel
 import net.jackadull.dirish.op.log.LogStyle
-import net.jackadull.dirish.op.network.{IsHostReachableError, NetworkStyle}
+import net.jackadull.dirish.op.network.{CanConnectToHostError, IsHostReachableError, NetworkStyle}
 import net.jackadull.dirish.op.settings._
 import net.jackadull.dirish.op.signals.SignalStyle.SignalGet
 import net.jackadull.dirish.op.signals.{SignalCacheConfig, SignalStyle}
@@ -36,6 +36,9 @@ with LogStyle[EitherV] with NetworkStyle[EitherV] with SignalStyle[EitherV] {
       }
       case Some(_) ⇒ (None, Left(GenericMessageError(s"Git directory is a regular file: $path")))
     }
+
+  def canConnectToHost(host:String, port:Int, timeoutMillis:Int):EitherV[Boolean,CanConnectToHostError] =
+    mutex synchronized {Right(!unreachableHosts(host))}
 
   def cloneGitRepository(path:AbsolutePathSpec, remoteName:String, uri:String):EitherV[Unit,GenericGitError] =
     path match {
