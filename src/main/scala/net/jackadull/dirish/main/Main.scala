@@ -11,6 +11,8 @@ import net.jackadull.dirish.op.signals.BlockingSignalStyle
 import net.jackadull.dirish.op.{GenericThrowableError, Op, OpError, StyleProxies}
 import net.jackadull.dirish.workflow.locking.LockGuarded
 import net.jackadull.dirish.workflow.main.UpdateDirectoryStructure
+import net.jackadull.dirish.workflow.repos.PullAllRepositories
+import net.jackadull.dirish.workflow.storage.LoadInternalDB
 
 import scala.language.postfixOps
 
@@ -25,6 +27,7 @@ object Main extends App {
     case ArgsParserSuccess(cmd, _) ⇒ cmd match {
       case HelpCommand ⇒
         println(DirishArgsParser.usage trim)
+      case DirishPullCommand(options) ⇒ runOp(LockGuarded(LoadInternalDB >> PullAllRepositories), options)
       case DirishSyncCommand(options) ⇒ runOp(LockGuarded(UpdateDirectoryStructure), options)
     }
   }

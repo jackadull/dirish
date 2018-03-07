@@ -8,6 +8,7 @@ import net.jackadull.dirish.op.util.UsingCombinator
 import net.jackadull.dirish.path.{AbsolutePathSpec, CompositeAbsolutePathSpec, UserHomePathSpec}
 import org.eclipse.jgit.api.Git
 import org.eclipse.jgit.lib.BranchTrackingStatus
+import org.eclipse.jgit.lib.SubmoduleConfig.FetchRecurseSubmodulesMode._
 import org.eclipse.jgit.transport.URIish
 
 import scala.language.{higherKinds, postfixOps, reflectiveCalls}
@@ -40,6 +41,13 @@ extends GitStyle[V] with UsingCombinator[V] {
         } else true
       } finally {git close()}
     }, {case t ⇒ GenericThrowableError(s"Cannot check $path for local Git changes", t)})
+
+  def pullGitRepository(path:AbsolutePathSpec):V[Unit,GenericGitError] =
+    vtry({
+      val git = Git.open(toFile(path))
+      try {git.pull().setRecurseSubmodules(YES).call()}
+      finally {git close()}
+    }, {case t ⇒ GenericThrowableError(s"Cannot fetch Git repository at $path", t)})
 
   def removeGitRemote(path:AbsolutePathSpec, remoteName:String):V[Unit,GenericGitError] =
     vtry({

@@ -1,5 +1,7 @@
 # Dirish: plan
 
+* Report status (local Git changes?) of all Git modules
+* Fix logging configuration
 * Introduce actual parallelism within stages, see: MigrationStep2
 * Fix the FlatMap optimization
 * Check for deviations between config and reality
@@ -7,8 +9,6 @@
 * Ensure that empty directories get removed
 * IntelliJ IDEA recent project paths update
 * Detect circular/linear dependencies in _move_ type changes
-* Update (pull/fetch) all Git modules
-* Report status (local Git changes?) of all Git modules
 * Error: lock file gets removed if it already exists
 * Error: cannot save signals when no caching time is given
 * Error: missing closing bracket yields a confusing error message

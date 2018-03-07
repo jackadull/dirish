@@ -10,6 +10,9 @@ object HelpCommand extends DirishCommand
 sealed trait DirishMainCommand extends DirishCommand {
   def withOptions(opts:Seq[DirishCommandOption]):DirishMainCommand
 }
+final case class DirishPullCommand(options:Seq[DirishCommandOption]=Seq()) extends DirishMainCommand {
+  def withOptions(opts:Seq[DirishCommandOption]):DirishMainCommand = copy(options = options ++ opts)
+}
 final case class DirishSyncCommand(options:Seq[DirishCommandOption]=Seq()) extends DirishMainCommand {
   def withOptions(opts:Seq[DirishCommandOption]):DirishMainCommand = copy(options = options ++ opts)
 }
@@ -31,6 +34,8 @@ object DirishArgsParser {
       |  -c, --config <arg>    Define the path of the configuration file. Default: ~/.dirish/config.dirish
       |
       |Commands:
+      |  pull                  Pull the latest version of all project repositories that do not contain local
+      |                        changes.
       |  sync                  Apply changes so that the actual project file structure matches the one specified
       |                        in the configuration file.
     """.stripMargin
@@ -38,5 +43,7 @@ object DirishArgsParser {
   private def help:ArgsParser[DirishCommand] = ("-?" | "-h" | "--help") <~ endOfArguments ^^ {_ ⇒ HelpCommand}
   private def option:ArgsParser[DirishCommandOption] = (("-c" | "--config") ~> (expecting("config file path")!)) ^^ ConfigPathOption
   private def options:ArgsParser[Seq[DirishCommandOption]] = (option?) ^^ {_ toSeq}
-  private def main:ArgsParser[DirishMainCommand] = "sync" ^^ {_ ⇒ DirishSyncCommand()}
+  private def main:ArgsParser[DirishMainCommand] =
+    ("pull" ^^ {_ ⇒ DirishPullCommand()}) |
+    ("sync" ^^ {_ ⇒ DirishSyncCommand()})
 }
