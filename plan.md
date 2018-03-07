@@ -1,6 +1,5 @@
 # Dirish: plan
 
-* Do fetch after clone, and also when pulling
 * Introduce actual parallelism within stages, see: MigrationStep2
 * Fix the FlatMap optimization
 * Check for deviations between config and reality

@@ -25,7 +25,7 @@ extends GitStyle[V] with UsingCombinator[V] {
 
   def cloneGitRepository(path:AbsolutePathSpec, remoteName:String, uri:String):V[Unit,GenericGitError] =
     vtry({
-      Git.cloneRepository().setURI(uri).setDirectory(toFile(path)).setRemote(remoteName).call().close()
+      Git.cloneRepository().setURI(uri).setDirectory(toFile(path)).setCloneAllBranches(true).setRemote(remoteName).call().close()
     }, {case t ⇒ GenericThrowableError(s"Cannot add remote '$remoteName' to $path", t)})
 
   def hasLocalGitChanges(path:AbsolutePathSpec):V[Boolean,GenericGitError] =
