@@ -1,5 +1,6 @@
 # Dirish: plan
 
+* Make the configurable config file workable
 * Introduce actual parallelism within stages, see: MigrationStep2
 * Fix the FlatMap optimization
 * Check for deviations between config and reality
@@ -33,6 +34,5 @@
   * Either that, or work with an include mechanism
 * Nicer `toString` results, all across the board
 * Some way to re-upload all the projects back to a GitLab
-* Maybe use [Decline](http://ben.kirw.in/decline/) for command-line arguments
 * Rename the project; maybe something akin to "homeostasis"?
 * Allow comments in config files

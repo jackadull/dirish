@@ -76,10 +76,9 @@ object MigrationStep {
 
   def applyInSequence(steps:Traversable[MigrationStep], soFar:Op[MigrationResult,Nothing,MigrationStyle]):Op[MigrationResult,Nothing,MigrationStyle] = {
     def singleStepOp(step:MigrationStep, state:MigrationResult):Op[MigrationResult,Nothing,MigrationStyle] =
-      soFar >> {state ⇒
-        (step(state) >>[MigrationResult,OpError,MigrationStyle] {partial ⇒ ResultIn(partial applyTo state)}) #>>[MigrationResult,Nothing,MigrationStyle] {error ⇒
-          step.logError(step.logFormat.failed(state) + ".", error) ~> ResultIn(state.failedChange(step change, error))
-        }}
+      (step(state) >>[MigrationResult,OpError,MigrationStyle] {partial ⇒ ResultIn(partial applyTo state)}) #>>[MigrationResult,Nothing,MigrationStyle] {error ⇒
+        step.logError(step.logFormat.failed(state) + ".", error) ~> ResultIn(state.failedChange(step change, error))
+      }
     steps.foldLeft(soFar) {(a:Op[MigrationResult,Nothing,MigrationStyle], b:MigrationStep) ⇒ a >> {st ⇒ singleStepOp(b, st)}}
   }
 }

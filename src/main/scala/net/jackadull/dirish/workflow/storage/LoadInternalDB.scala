@@ -8,5 +8,6 @@ import net.jackadull.dirish.op.{Op, OpError}
 import scala.language.postfixOps
 
 object LoadInternalDB extends ProxyOp[ProjectConfig,OpError,StorageStyle] {
-  protected val innerOp:Op[ProjectConfig,OpError,StorageStyle] = LoadConfigFile(InternalDBFilePath)
+  protected val innerOp:Op[ProjectConfig,OpError,StorageStyle] =
+    LoadConfigFile(InternalDBFilePath, emptyIfNonExistent=true)
 }

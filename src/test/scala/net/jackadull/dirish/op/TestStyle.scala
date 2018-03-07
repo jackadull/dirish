@@ -20,7 +20,7 @@ class TestStyle extends DefaultDirishSettingStyle[EitherV] with BlockingEitherCo
 with LogStyle[EitherV] with NetworkStyle[EitherV] with SignalStyle[EitherV] {
   protected def combinatorStyle:CombinatorStyle[EitherV] = BlockingEitherCombinatorStyle
 
-  def clearFlagCache() {mutex synchronized {signalCache = Map()}}
+  def clearSignalCache() {mutex synchronized {signalCache = Map()}}
   def logMessages:Seq[(OpLogLevel,String,Option[Throwable])] = mutex synchronized _logMessages
   def setHostReachable(host:String, reachable:Boolean) =
     if(reachable) mutex synchronized {unreachableHosts -= host} else mutex synchronized {unreachableHosts += host}

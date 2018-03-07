@@ -44,6 +44,18 @@ class UpdateDirectoryStructureTest extends FreeSpec with Matchers {
     )
   }
 
+  "creating a simple structure with two projects works" in {
+    val style = new TestStyle
+    updateToConfig[EitherV]("simple_2projects.dirish", style) should be ('right)
+    postConditions[EitherV](style)(
+      normalPostUpdateConditions,
+      directoryExists(UserHomePathSpec/"p2"/"prv"/"tool"/"dirish"),
+      isGitRepository(UserHomePathSpec/"p2"/"prv"/"tool"/"dirish"),
+      directoryExists(UserHomePathSpec/"p2"/"prv"/"tool"/"another_prj"),
+      isGitRepository(UserHomePathSpec/"p2"/"prv"/"tool"/"another_prj")
+    )
+  }
+
   "a project whose flags are not up does not get cloned" in {
     val io = new TestStyle
     io.setHostReachable("foo.bar.com", reachable = false)
@@ -52,10 +64,10 @@ class UpdateDirectoryStructureTest extends FreeSpec with Matchers {
       normalPostUpdateConditions,
       directoryExists(UserHomePathSpec/"p2"/"prv"/"tool"/"dirish"),
       isGitRepository(UserHomePathSpec/"p2"/"prv"/"tool"/"dirish"),
-      fileDoesNotExist(UserHomePathSpec/"p2"/"prv"/"tool"/"conditional")
+      isNotAGitRepository(UserHomePathSpec/"p2"/"prv"/"tool"/"conditional")
     )
-    io.setHostReachable("foo.bar.com", reachable = false)
-    io.clearFlagCache()
+    io.setHostReachable("foo.bar.com", reachable = true)
+    io.clearSignalCache()
     updateToConfig[EitherV]("just1project_and1withAFlag.dirish", io) should be ('right)
     postConditions[EitherV](io)(
       isGitRepository(UserHomePathSpec/"p2"/"prv"/"tool"/"conditional")
@@ -94,6 +106,7 @@ class UpdateDirectoryStructureTest extends FreeSpec with Matchers {
     case unexpected ⇒ FailWith(GenericMessageError(s"expected file or directory at $path, but found: $unexpected"))
   }
   private def isGitRepository(path:AbsolutePathSpec):Op[Unit,OpError,Style] = fileOrDirectoryExists(path/".git")
+  private def isNotAGitRepository(path:AbsolutePathSpec):Op[Unit,OpError,Style] = fileDoesNotExist(path/".git")
   private def normalPostUpdateConditions:Op[Unit,OpError,Style] = ResultIn(Seq(
     plainFileExists(UserHomePathSpec/".dirish"/"internal_db.dirish"),
     fileDoesNotExist(UserHomePathSpec/".dirish"/"lockfile")

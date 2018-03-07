@@ -6,16 +6,16 @@ import net.jackadull.dirish.marshalling.{ProjectConfigParser, TokenToProjectConf
 import net.jackadull.dirish.model.ProjectConfig
 import net.jackadull.dirish.op.Op.ProxyOp
 import net.jackadull.dirish.op.combinator.{FailWith, ResultIn}
-import net.jackadull.dirish.op.io.ReadFileAsString
+import net.jackadull.dirish.op.io.{NoSuchFile, ReadFileAsString}
 import net.jackadull.dirish.op.settings.DirishSetting
 import net.jackadull.dirish.op.{Op, OpError}
 import net.jackadull.dirish.path.AbsolutePathSpec
 
 import scala.language.postfixOps
 
-final case class LoadConfigFile(pathSetting:DirishSetting[AbsolutePathSpec]) extends ProxyOp[ProjectConfig,OpError,StorageStyle] {
+final case class LoadConfigFile(pathSetting:DirishSetting[AbsolutePathSpec], emptyIfNonExistent:Boolean=false) extends ProxyOp[ProjectConfig,OpError,StorageStyle] {
   protected def innerOp:Op[ProjectConfig,OpError,StorageStyle] =
-    pathSetting.get >> {ReadFileAsString(_, UTF_8)} >> {raw ⇒
+    (pathSetting.get >> {ReadFileAsString(_, UTF_8)} >> {raw ⇒
       ProjectConfigParser parse (ProjectConfigParser root, raw) match {
         case ProjectConfigParser.Success(configToken, _) ⇒ TokenToProjectConfig(configToken) match {
           case Right(config) ⇒ ResultIn(config)
@@ -23,5 +23,5 @@ final case class LoadConfigFile(pathSetting:DirishSetting[AbsolutePathSpec]) ext
         }
         case err:ProjectConfigParser.NoSuccess ⇒ FailWith(ConfigLoadParsingError(err))
       }
-    }
+    }) #>>? {case _:NoSuchFile if emptyIfNonExistent ⇒ ResultIn(ProjectConfig empty)}
 }
