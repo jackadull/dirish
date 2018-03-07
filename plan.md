@@ -1,6 +1,5 @@
 # Dirish: plan
 
-* Upgrade ScalaTest to avoid compile warning
 * Introduce actual parallelism within stages, see: MigrationStep2
 * Fix the FlatMap optimization
 * Check for deviations between config and reality

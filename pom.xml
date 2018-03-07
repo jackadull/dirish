@@ -15,6 +15,7 @@
     <version.dependency.jgit>4.10.0.201712302008-r</version.dependency.jgit>
     <version.depdendency.logback>1.2.3</version.depdendency.logback>
     <version.dependency.scala-parser-combinators>1.0.7</version.dependency.scala-parser-combinators>
+    <version.dependency.scala-xml>1.1.0</version.dependency.scala-xml>
     <version.dependency.scalatest>3.0.5</version.dependency.scalatest>
     <version.jvm.source>1.9</version.jvm.source>
     <version.jvm.target>1.9</version.jvm.target>
@@ -53,6 +54,11 @@
       <groupId>org.scala-lang.modules</groupId>
       <artifactId>scala-parser-combinators_${version.language.scala.major}</artifactId>
       <version>${version.dependency.scala-parser-combinators}</version>
+    </dependency>
+    <dependency>
+      <groupId>org.scala-lang.modules</groupId>
+      <artifactId>scala-xml_${version.language.scala.major}</artifactId>
+      <version>${version.dependency.scala-xml}</version>
     </dependency>
   </dependencies>
 
