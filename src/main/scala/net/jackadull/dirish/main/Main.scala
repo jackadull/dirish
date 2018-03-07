@@ -8,7 +8,7 @@ import net.jackadull.dirish.op.log.BlockingSLF4JLogStyle
 import net.jackadull.dirish.op.network.BlockingNetworkStyle
 import net.jackadull.dirish.op.settings.{CLIDirishSettingStyle, DefaultDirishSettingStyle}
 import net.jackadull.dirish.op.signals.BlockingSignalStyle
-import net.jackadull.dirish.op.{Op, OpError, StyleProxies}
+import net.jackadull.dirish.op.{GenericThrowableError, Op, OpError, StyleProxies}
 import net.jackadull.dirish.workflow.locking.LockGuarded
 import net.jackadull.dirish.workflow.main.UpdateDirectoryStructure
 
@@ -53,5 +53,10 @@ object Main extends App {
     }
   }
 
-  private def reportError(error:OpError) {System.err.println(s"Error: $error")}
+  private def reportError(error:OpError) {error match {
+    case GenericThrowableError(msg, throwable) ⇒
+      System.err.println(s"Error: $msg")
+      throwable.printStackTrace()
+    case _ ⇒ System.err.println(s"Error: $error")
+  }}
 }

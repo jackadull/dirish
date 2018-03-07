@@ -78,7 +78,10 @@ extends IOStyle[V] with UsingCombinator[V] {
     vtry({
       val input = Files newInputStream toPath(path)
       try {new String(input readAllBytes, charset)} finally {input close()}
-    }, {case t ⇒ GenericThrowableError(s"Cannot read $path", t)})
+    }, {
+      case _:NoSuchFileException ⇒ NoSuchFile(s"File not found", path toString)
+      case t ⇒ GenericThrowableError(s"Cannot read $path", t)}
+    )
 
 
   def saveStringToFile(path:AbsolutePathSpec, str:String, charset:Charset):V[Unit,SaveStringToFileError] =
