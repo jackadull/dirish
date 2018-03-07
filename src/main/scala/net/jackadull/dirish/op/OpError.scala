@@ -8,5 +8,5 @@ trait OpError
 
 trait GenericOpError extends GenericGitError with GenericIOError with GenericNetworkError
 
-final case class GenericMessageError(msg:String) extends GenericOpError
+final case class GenericMessageError(msg:String) extends GenericOpError {override def toString = msg}
 final case class GenericThrowableError(msg:String, throwable:Throwable) extends GenericOpError

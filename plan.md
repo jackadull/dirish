@@ -1,6 +1,5 @@
 # Dirish: plan
 
-* Make the configurable config file workable
 * Introduce actual parallelism within stages, see: MigrationStep2
 * Fix the FlatMap optimization
 * Check for deviations between config and reality

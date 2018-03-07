@@ -14,9 +14,9 @@ trait StyleProxies[V[+_,+_]] extends CombinatorStyleProxy[V] with DirishSettingS
 with IOStyleProxy[V] with LogStyleProxy[V] with NetworkStyleProxy[V] with SignalStyleProxy[V]
 object StyleProxies {
   def apply[V[+_,+_]](combinatorStyle:CombinatorStyle[V], gitStyle:GitStyle[V], ioStyle:IOStyle[V],
-    logStyle:LogStyle[V], networkStyle:NetworkStyle[V], settingsStyle:DirishSettingStyle[V],
+    logStyle:LogStyle[V], networkStyle:NetworkStyle[V], settingStyle:DirishSettingStyle[V],
     signalStyle:SignalStyle[V]):StyleProxies[V] = StyleProxiesImpl(combinatorStyle, gitStyle, ioStyle, logStyle,
-      networkStyle, settingsStyle, signalStyle)
+      networkStyle, settingStyle, signalStyle)
 
   private case class StyleProxiesImpl[V[+_,+_]](combinatorStyle:CombinatorStyle[V], gitStyle:GitStyle[V],
     ioStyle:IOStyle[V], logStyle:LogStyle[V], networkStyle:NetworkStyle[V], settingsStyle:DirishSettingStyle[V],
