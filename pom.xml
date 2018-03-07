@@ -15,7 +15,7 @@
     <version.dependency.jgit>4.10.0.201712302008-r</version.dependency.jgit>
     <version.depdendency.logback>1.2.3</version.depdendency.logback>
     <version.dependency.scala-parser-combinators>1.0.7</version.dependency.scala-parser-combinators>
-    <version.dependency.scalatest>3.0.4</version.dependency.scalatest>
+    <version.dependency.scalatest>3.0.5</version.dependency.scalatest>
     <version.jvm.source>1.9</version.jvm.source>
     <version.jvm.target>1.9</version.jvm.target>
     <version.language.scala>${version.language.scala.major}.${version.language.scala.minor}</version.language.scala>
