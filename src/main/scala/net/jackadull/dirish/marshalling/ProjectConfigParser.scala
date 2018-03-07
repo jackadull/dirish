@@ -9,7 +9,7 @@ object ProjectConfigParser extends RegexParsers {
   def root:Parser[ProjectConfigRootToken] = phrase(baseDirDefs) ^^ ProjectConfigRootToken
 
   private val timeUnitNames:Seq[String] = Seq("d", "day", "days", "h", "hour", "hours", "m", "min", "mins", "minute",
-    "minutes", "s", "sec", "secs", "seconds", "ms", "milli", "millis", "millisecond", "milliseconds")
+    "minutes", "s", "sec", "secs", "second", "seconds", "ms", "milli", "millis", "millisecond", "milliseconds")
 
   private def intNumber = """\d+""".r ^^ {_.toInt}
   private lazy val timeUnit = timeUnitNames.sortBy(- _.length).map(n ⇒ s"($n)").mkString("|").r ^^ {x ⇒ x}
@@ -27,7 +27,7 @@ object ProjectConfigParser extends RegexParsers {
   private def gitRemoteURI = """[^\s,}]+""".r ^^ GitRemoteURIToken
   private def gitRepository = RenderProjectConfig.gitRepository ^^ {_ ⇒ GitRepositoryToken}
   private def host = RenderProjectConfig.host ^^ {_ ⇒ HostToken}
-  private def hostName = """[^\s}]+""".r ^^ HostNameToken
+  private def hostName = """[^\s}:]+""".r ^^ HostNameToken
   private def listSeparator = RenderProjectConfig.listSeparator ^^ {_ ⇒ ListSeparatorToken}
   private def pathElement = """[^/\s:{]+""".r ^^ PathElementToken
   private def pathDelimiter = RenderProjectConfig.pathDelimiter ^^ {_ ⇒ PathDelimiterToken}

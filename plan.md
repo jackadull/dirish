@@ -8,6 +8,9 @@
 * IntelliJ IDEA recent project paths update
 * Detect circular/linear dependencies in _move_ type changes
 * Update (pull/fetch) all Git modules
+* Error: lock file gets removed if it already exists
+* Error: cannot save signals when no caching time is given
+* Error: missing closing bracket yields a confusing error message
 * Continuous background process (daemon?)
   * See also:
     * [Creating Launch Daemons and Agents](https://developer.apple.com/library/content/documentation/MacOSX/Conceptual/BPSystemStartup/Chapters/CreatingLaunchdJobs.html)

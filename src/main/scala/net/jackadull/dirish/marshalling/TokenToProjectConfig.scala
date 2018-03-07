@@ -4,7 +4,7 @@ import java.util.UUID
 
 import net.jackadull.dirish.migration.Migration.MigrationStyle
 import net.jackadull.dirish.model.ProjectConfig
-import net.jackadull.dirish.op.network.IsHostReachable
+import net.jackadull.dirish.op.network.{CanConnectToHost, IsHostReachable}
 import net.jackadull.dirish.op.signals.{Signal, SignalCacheConfig}
 import net.jackadull.dirish.op.{Op, OpError}
 import net.jackadull.dirish.path.{AbsolutePathSpec, PathElementSpec, RelativePathSpec, UserHomePathSpec}
@@ -156,6 +156,7 @@ object TokenToProjectConfig {
   }
 
   private def toSignalOp(op:SignalToken):Op[Boolean,OpError,MigrationStyle] = op match {
+    case CanConnectToHostToken(hostNameToken, portToken, within) ⇒ CanConnectToHost(hostNameToken hostName, portToken portNumber, toFiniteDuration(within).toMillis.toInt)
     case HostReachableToken(hostNameToken, within) ⇒ IsHostReachable(hostNameToken hostName, toFiniteDuration(within).toMillis.toInt)
     case _ ⇒ sys error s"unexpected signal op: $op"
   }
