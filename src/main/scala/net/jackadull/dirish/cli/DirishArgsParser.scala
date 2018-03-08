@@ -13,6 +13,9 @@ sealed trait DirishMainCommand extends DirishCommand {
 final case class DirishPullCommand(options:Seq[DirishCommandOption]=Seq()) extends DirishMainCommand {
   def withOptions(opts:Seq[DirishCommandOption]):DirishMainCommand = copy(options = options ++ opts)
 }
+final case class DirishStatusCommand(options:Seq[DirishCommandOption]=Seq()) extends DirishMainCommand {
+  def withOptions(opts:Seq[DirishCommandOption]):DirishMainCommand = copy(options = options ++ opts)
+}
 final case class DirishSyncCommand(options:Seq[DirishCommandOption]=Seq()) extends DirishMainCommand {
   def withOptions(opts:Seq[DirishCommandOption]):DirishMainCommand = copy(options = options ++ opts)
 }
@@ -36,6 +39,7 @@ object DirishArgsParser {
       |Commands:
       |  pull                  Pull the latest version of all project repositories that do not contain local
       |                        changes.
+      |  status                Lists all projects that have a repository with local changes.
       |  sync                  Apply changes so that the actual project file structure matches the one specified
       |                        in the configuration file.
     """.stripMargin
@@ -45,5 +49,6 @@ object DirishArgsParser {
   private def options:ArgsParser[Seq[DirishCommandOption]] = (option?) ^^ {_ toSeq}
   private def main:ArgsParser[DirishMainCommand] =
     ("pull" ^^ {_ ⇒ DirishPullCommand()}) |
+    ("status" ^^ {_ ⇒ DirishStatusCommand()}) |
     ("sync" ^^ {_ ⇒ DirishSyncCommand()})
 }

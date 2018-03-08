@@ -1,6 +1,5 @@
 # Dirish: plan
 
-* Report status (local Git changes?) of all Git modules
 * Fix logging configuration
 * Introduce actual parallelism within stages, see: MigrationStep2
 * Fix the FlatMap optimization

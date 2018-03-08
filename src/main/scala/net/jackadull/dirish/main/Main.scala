@@ -11,10 +11,11 @@ import net.jackadull.dirish.op.signals.BlockingSignalStyle
 import net.jackadull.dirish.op.{GenericThrowableError, Op, OpError, StyleProxies}
 import net.jackadull.dirish.workflow.locking.LockGuarded
 import net.jackadull.dirish.workflow.main.UpdateDirectoryStructure
-import net.jackadull.dirish.workflow.repos.PullAllRepositories
+import net.jackadull.dirish.workflow.repos.GetAllRepositoryStates.RepositoryState
+import net.jackadull.dirish.workflow.repos.{GetAllRepositoryStates, PullAllRepositories}
 import net.jackadull.dirish.workflow.storage.LoadInternalDB
 
-import scala.language.postfixOps
+import scala.language.{higherKinds, postfixOps}
 
 object Main extends App {
   def executableName:String = "dirish"
@@ -28,6 +29,7 @@ object Main extends App {
       case HelpCommand ⇒
         println(DirishArgsParser.usage trim)
       case DirishPullCommand(options) ⇒ runOp(LockGuarded(LoadInternalDB >> PullAllRepositories), options)
+      case DirishStatusCommand(options) ⇒ runOp(LockGuarded(LoadInternalDB >> {GetAllRepositoryStates(_)} >> ReportRepositoryStates), options)
       case DirishSyncCommand(options) ⇒ runOp(LockGuarded(UpdateDirectoryStructure), options)
     }
   }
@@ -62,4 +64,16 @@ object Main extends App {
       throwable.printStackTrace()
     case _ ⇒ System.err.println(s"Error: $error")
   }}
+
+  private final case class ReportRepositoryStates(states:Traversable[RepositoryState]) extends Op[Unit,OpError,StyleProxies] {
+    def instantiateIn[V[+_,+_]](style:StyleProxies[V]):V[Unit,OpError] = style resultIn {
+      val pathsWithLocalChanges = states.filter(_.hasLocalGitChanges).toSeq.map(_.path.toString).sorted
+      if(pathsWithLocalChanges nonEmpty) {
+        println("Git repositories with local changes:")
+        println()
+        pathsWithLocalChanges foreach {path ⇒ println(s"\t$path")}
+        println()
+      }
+    }
+  }
 }
