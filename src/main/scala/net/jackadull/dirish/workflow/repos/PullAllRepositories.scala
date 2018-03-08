@@ -43,7 +43,7 @@ final case class PullAllRepositories(config:ProjectConfig) extends ProxyOp[Unit,
 
   private def performPull(projectID:UUID):Op[Unit,OpError,MigrationStyle] = {
     val projectPath = absoluteProjectPath(projectID)
-    log.info(s"Pulling Git repository at $projectPath...") ~> PullGitRepository(projectPath)
+    log.info(s"Pulling Git repository at $projectPath ...") ~> PullGitRepository(projectPath)
   }
 
   private def absoluteProjectPath(projectID:UUID):AbsolutePathSpec =
