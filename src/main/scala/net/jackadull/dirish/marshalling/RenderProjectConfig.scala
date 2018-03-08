@@ -16,6 +16,7 @@ object RenderProjectConfig {
   val `for`:String = "for"
   val gitRepository:String = "git"
   val host:String = "host"
+  val include:String = "include"
   val listSeparator:String = ","
   val pathDelimiter:String = "/"
   val portSeparator:String = ":"
@@ -38,6 +39,7 @@ object RenderProjectConfig {
   private def directoryContents(contentsToken:DirectoryContentsToken, indent:Indent):String = contentsToken match {
     case t:ActiveWhenToken ⇒ activeWhen(t, indent)
     case t:DirectoryDefToken ⇒ directoryDef(t, indent)
+    case t:IncludeDirectiveToken ⇒ includeDirective(t, indent)
     case t:ProjectDefToken ⇒ projectDef(t, indent)
   }
   private def directoryDef(directoryDef:DirectoryDefToken, indent:Indent):String =
@@ -52,11 +54,13 @@ object RenderProjectConfig {
   private def hostName(token:HostNameToken):String = token.hostName
   private def hostReachable(token:HostReachableToken, indent:Indent, additions:Seq[String]):String =
     s"$indent$host ${hostName(token hostNameToken)} $reachable $within ${duration(token within)}${additions.map(a ⇒ s" $a").mkString}\n"
+  private def includeDirective(token:IncludeDirectiveToken, indent:Indent):String =
+    s"$indent$include ${pathElements(token path)}\n"
   private def pathElement(pathElement:PathElementToken):String = pathElement.name
   private def pathElements(pathElements:PathElementsToken):String = pathElements.elements map pathElement mkString pathDelimiter
   private def port(port:PortToken):String = port.portNumber.toString
   private def projectConfigRoot(projectConfigRoot:ProjectConfigRootToken, indent:Indent):String =
-    projectConfigRoot.baseDirs map {baseDirDef(_, indent)} mkString "\n"
+    projectConfigRoot.topLevel map {topLevel(_, indent)} mkString "\n"
   private def projectDef(projectDef:ProjectDefToken, indent:Indent):String =
     s"$indent${pathElements(projectDef path)}$uuidSeparator ${uuid(projectDef idToken)}" + (projectDef.properties match {
       case Seq() ⇒ ""
@@ -74,5 +78,9 @@ object RenderProjectConfig {
     case t:HostReachableToken ⇒ hostReachable(t, indent, additions)
   }
   private def timeWithUnit(token:TimeWithUnitToken):String = s"${token time}${token unit}"
+  private def topLevel(token:TopLevelToken, indent:Indent):String = token match {
+    case t:IncludeDirectiveToken ⇒ includeDirective(t, indent)
+    case t:BaseDirDefToken ⇒ baseDirDef(t, indent)
+  }
   private def uuid(uuidToken:UUIDToken):String = uuidToken.uuid.toString
 }

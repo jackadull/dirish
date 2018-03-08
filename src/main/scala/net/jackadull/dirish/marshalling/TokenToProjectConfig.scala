@@ -15,7 +15,14 @@ import scala.language.postfixOps
 
 object TokenToProjectConfig {
   def apply(root:ProjectConfigRootToken):Either[ConfigSemanticError,ProjectConfig] =
-    withBaseDirs(root baseDirs, ProjectConfig empty)
+    withTopLevel(root topLevel, ProjectConfig empty)
+
+  private def withTopLevel(topLevelTokens:Seq[TopLevelToken], projectConfig:ProjectConfig):Either[ConfigSemanticError,ProjectConfig] =
+    if(topLevelTokens exists {_.isInstanceOf[IncludeDirectiveToken]}) Left(ContainsUnresolvedInclude)
+    else withBaseDirs(topLevelTokens map {
+      case t:BaseDirDefToken ⇒ t
+      case unexpected:IncludeDirectiveToken ⇒ sys error s"unexpected top-level token: $unexpected"
+    }, projectConfig)
 
   private def withBaseDirs(baseDirs:Seq[BaseDirDefToken], projectConfig:ProjectConfig):Either[ConfigSemanticError,ProjectConfig] =
     baseDirs match {
@@ -47,6 +54,7 @@ object TokenToProjectConfig {
         case Right(projectConfig2) ⇒ withDirectoryContents(baseDirectoryID, rst, projectConfig2, localPaths, activeWhens, localActiveWhensExtracted)
         case Left(err) ⇒ Left(err)
       }
+      case Seq(_:IncludeDirectiveToken, _*) ⇒ Left(ContainsUnresolvedInclude)
     }
 
   private def extractActiveWhens(contents:Seq[DirectoryContentsToken]):(Set[ActiveWhenToken],Seq[DirectoryContentsToken]) = {

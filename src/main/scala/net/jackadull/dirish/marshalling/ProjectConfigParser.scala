@@ -6,7 +6,8 @@ import scala.language.postfixOps
 import scala.util.parsing.combinator.RegexParsers
 
 object ProjectConfigParser extends RegexParsers {
-  def root:Parser[ProjectConfigRootToken] = phrase(baseDirDefs) ^^ ProjectConfigRootToken
+  def root:Parser[ProjectConfigRootToken] = phrase(topLevelTokens) ^^ ProjectConfigRootToken
+  def directoryContentsList:Parser[List[DirectoryContentsToken]] = rep(directoryContents)
 
   private val timeUnitNames:Seq[String] = Seq("d", "day", "days", "h", "hour", "hours", "m", "min", "mins", "minute",
     "minutes", "s", "sec", "secs", "second", "seconds", "ms", "milli", "millis", "millisecond", "milliseconds")
@@ -28,6 +29,7 @@ object ProjectConfigParser extends RegexParsers {
   private def gitRepository = RenderProjectConfig.gitRepository ^^ {_ ⇒ GitRepositoryToken}
   private def host = RenderProjectConfig.host ^^ {_ ⇒ HostToken}
   private def hostName = """[^\s}:]+""".r ^^ HostNameToken
+  private def include = RenderProjectConfig.include ^^ {_ ⇒ IncludeToken}
   private def listSeparator = RenderProjectConfig.listSeparator ^^ {_ ⇒ ListSeparatorToken}
   private def pathElement = """[^/\s:{]+""".r ^^ PathElementToken
   private def pathDelimiter = RenderProjectConfig.pathDelimiter ^^ {_ ⇒ PathDelimiterToken}
@@ -45,12 +47,10 @@ object ProjectConfigParser extends RegexParsers {
   private def baseDirDef:Parser[BaseDirDefToken] = pathElements ~ uuidSeparator ~ uuid ~ blockOpen ~ directoryContentsList ~ blockClose ^^ {
     case path ~ _ ~ id ~ _ ~ contents ~ _ ⇒ BaseDirDefToken(path, id, contents)
   }
-  private def baseDirDefs:Parser[List[BaseDirDefToken]] = rep(baseDirDef)
   private def canConnectToHost:Parser[CanConnectToHostToken] = can ~ connect ~ to ~ hostName ~ portSeparator ~ port ~ within ~ duration ^^ {
     case _ ~ _ ~ _ ~ host ~ _ ~ port ~ _ ~ duration ⇒ CanConnectToHostToken(host, port, duration)
   }
-  private def directoryContents:Parser[DirectoryContentsToken] = activeWhen | projectDef | directoryDef
-  private def directoryContentsList:Parser[List[DirectoryContentsToken]] = rep(directoryContents)
+  private def directoryContents:Parser[DirectoryContentsToken] = activeWhen | projectDef | directoryDef | includeDirective
   private def directoryDef:Parser[DirectoryDefToken] = pathElements ~ blockOpen ~ directoryContentsList ~ blockClose ^^ {
     case path ~ _ ~ contents ~ _ ⇒ DirectoryDefToken(path, contents)
   }
@@ -62,6 +62,9 @@ object ProjectConfigParser extends RegexParsers {
   private def gitRemotes:Parser[GitRemotesToken] = rep1sep(gitRemote, listSeparator) ^^ GitRemotesToken
   private def hostReachable:Parser[HostReachableToken] = host ~ hostName ~ reachable ~ within ~ duration ^^ {
     case _ ~ hn ~ _ ~ _ ~ d ⇒ HostReachableToken(hn, d)
+  }
+  private def includeDirective:Parser[IncludeDirectiveToken] = include ~ pathElements ^^ {
+    case _ ~ path ⇒ IncludeDirectiveToken(path)
   }
   private def pathElements:Parser[PathElementsToken] = rep1sep(pathElement, pathDelimiter) ^^ PathElementsToken
   private def port:Parser[PortToken] = intNumber ^^ PortToken
@@ -82,6 +85,7 @@ object ProjectConfigParser extends RegexParsers {
   private def timeWithUnit:Parser[TimeWithUnitToken] = intNumber ~ timeUnit ^^ {
     case n ~ u ⇒ TimeWithUnitToken(n, u)
   }
+  private def topLevelTokens:Parser[List[TopLevelToken]] = rep(baseDirDef | includeDirective)
 
   private def validateProjectProperties(els:List[ProjectPropertyToken]):Parser[List[ProjectPropertyToken]] =
     if(els.count(_.isInstanceOf[GitRepositoryDefToken])>1) err("More than one Git repository definition for project.")

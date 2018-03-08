@@ -6,10 +6,11 @@ sealed trait ProjectConfigToken
 sealed trait DirectoryContentsToken extends ProjectConfigToken
 sealed trait ProjectPropertyToken extends ProjectConfigToken
 sealed trait SignalToken extends ProjectConfigToken
+sealed trait TopLevelToken extends ProjectConfigToken
 
 object ActiveToken extends ProjectConfigToken
 final case class ActiveWhenToken(signals:List[SignalToken]) extends DirectoryContentsToken with ProjectPropertyToken
-final case class BaseDirDefToken(directory:PathElementsToken, id:UUIDToken, contents:List[DirectoryContentsToken]) extends ProjectConfigToken
+final case class BaseDirDefToken(directory:PathElementsToken, id:UUIDToken, contents:List[DirectoryContentsToken]) extends TopLevelToken
 object BlockCloseToken extends ProjectConfigToken
 object BlockOpenToken extends ProjectConfigToken
 object BraceCloseToken extends ProjectConfigToken
@@ -31,13 +32,15 @@ object GitRepositoryToken extends ProjectConfigToken
 final case class HostNameToken(hostName:String) extends ProjectConfigToken
 final case class HostReachableToken(hostNameToken:HostNameToken, within:DurationToken) extends SignalToken
 object HostToken extends ProjectConfigToken
+object IncludeToken extends ProjectConfigToken
+final case class IncludeDirectiveToken(path:PathElementsToken) extends DirectoryContentsToken with TopLevelToken
 object ListSeparatorToken extends ProjectConfigToken
 object PathDelimiterToken extends ProjectConfigToken
 final case class PathElementsToken(elements:List[PathElementToken]) extends ProjectConfigToken
 final case class PathElementToken(name:String) extends ProjectConfigToken
 object PortSeparatorToken extends ProjectConfigToken
 final case class PortToken(portNumber:Int) extends ProjectConfigToken
-final case class ProjectConfigRootToken(baseDirs:List[BaseDirDefToken]) extends ProjectConfigToken
+final case class ProjectConfigRootToken(topLevel:List[TopLevelToken]) extends ProjectConfigToken
 final case class ProjectDefToken(path:PathElementsToken, idToken:UUIDToken, properties:Seq[ProjectPropertyToken]) extends DirectoryContentsToken
 object ReachableToken extends ProjectConfigToken
 final case class TimeWithUnitToken(time:Int, unit:String) extends ProjectConfigToken

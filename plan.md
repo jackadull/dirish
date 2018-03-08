@@ -10,6 +10,7 @@
 * Error: lock file gets removed if it already exists
 * Error: cannot save signals when no caching time is given
 * Error: missing closing bracket yields a confusing error message
+* Error: when using "import" instead of "include", there is no error message
 * Continuous background process (daemon?)
   * See also:
     * [Creating Launch Daemons and Agents](https://developer.apple.com/library/content/documentation/MacOSX/Conceptual/BPSystemStartup/Chapters/CreatingLaunchdJobs.html)
@@ -30,9 +31,6 @@
 * Generalize path elements
   * Instead of throwing exceptions, make the constructors return `Either`
 * Better reporting of semantic errors, containing the source position
-* Enable several configs side-by-side
-  * Use a config-file-wide unique ID for identification
-  * Either that, or work with an include mechanism
 * Nicer `toString` results, all across the board
 * Some way to re-upload all the projects back to a GitLab
 * Rename the project; maybe something akin to "homeostasis"?

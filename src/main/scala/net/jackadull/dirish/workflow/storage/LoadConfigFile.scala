@@ -15,13 +15,16 @@ import scala.language.postfixOps
 
 final case class LoadConfigFile(pathSetting:DirishSetting[AbsolutePathSpec], emptyIfNonExistent:Boolean=false) extends ProxyOp[ProjectConfig,OpError,StorageStyle] {
   protected def innerOp:Op[ProjectConfig,OpError,StorageStyle] =
-    (pathSetting.get >> {ReadFileAsString(_, UTF_8)} >> {raw ⇒
+    (pathSetting.get >> {path ⇒ ReadFileAsString(path, UTF_8) >>[ProjectConfig,OpError,StorageStyle] {raw ⇒
       ProjectConfigParser parse (ProjectConfigParser root, raw) match {
-        case ProjectConfigParser.Success(configToken, _) ⇒ TokenToProjectConfig(configToken) match {
-          case Right(config) ⇒ ResultIn(config)
-          case Left(err) ⇒ FailWith(ConfigLoadSemanticError(err))
-        }
+        case ProjectConfigParser.Success(rawConfigToken, _) ⇒
+          ResolveConfigIncludes(rawConfigToken, path) >> {configToken ⇒
+            TokenToProjectConfig(configToken) match {
+              case Right(config) ⇒ ResultIn(config)
+              case Left(err) ⇒ FailWith(ConfigLoadSemanticError(err))
+            }
+          }
         case err:ProjectConfigParser.NoSuccess ⇒ FailWith(ConfigLoadParsingError(err))
       }
-    }) #>>? {case _:NoSuchFile if emptyIfNonExistent ⇒ ResultIn(ProjectConfig empty)}
+    }}) #>>? {case _:NoSuchFile if emptyIfNonExistent ⇒ ResultIn(ProjectConfig empty)}
 }
