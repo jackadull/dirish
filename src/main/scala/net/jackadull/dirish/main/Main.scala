@@ -18,6 +18,8 @@ import net.jackadull.dirish.workflow.storage.LoadInternalDB
 import scala.language.{higherKinds, postfixOps}
 
 object Main extends App {
+  LogSetup()
+
   def executableName:String = "dirish"
 
   DirishArgsParser.complete(args toList) match {
