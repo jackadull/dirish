@@ -3,92 +3,69 @@
   xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/maven-v4_0_0.xsd">
   <modelVersion>4.0.0</modelVersion>
 
-  <groupId>net.jackadull.dirish</groupId>
   <artifactId>dirish</artifactId>
-  <name>${project.artifactId}</name>
-  <version>0.1-SNAPSHOT</version>
+  <version>0.1.0-SNAPSHOT</version>
 
+  <name>dirish</name>
   <description>Synchronizes file structures with a given description of a target structure.</description>
+  <url>https://github.com/jackadull/dirish</url>
+
+  <parent>
+    <groupId>net.jackadull</groupId>
+    <artifactId>scala-parent_2.12</artifactId>
+    <version>1.0.0</version>
+  </parent>
+
+  <licenses>
+    <license>
+      <name>MIT License</name>
+      <url>http://www.opensource.org/licenses/mit-license.php</url>
+    </license>
+  </licenses>
+
+  <developers>
+    <developer>
+      <name>Matthias Deja</name>
+      <email>m@jackadull.net</email>
+      <organization>Jackadull</organization>
+      <organizationUrl>http://jackadull.net</organizationUrl>
+    </developer>
+  </developers>
+
+  <scm>
+    <connection>scm:git:git://github.com/jackadull/dirish.git</connection>
+    <developerConnection>scm:git:git://github.com/jackadull/dirish.git</developerConnection>
+    <url>https://github.com/jackadull/dirish</url>
+  </scm>
 
   <properties>
-    <encoding>UTF-8</encoding>
     <version.dependency.jgit>4.10.0.201712302008-r</version.dependency.jgit>
-    <version.depdendency.logback>1.2.3</version.depdendency.logback>
+    <version.dependency.logback>1.2.3</version.dependency.logback>
     <version.dependency.scala-parser-combinators>1.0.7</version.dependency.scala-parser-combinators>
-    <version.dependency.scala-xml>1.1.0</version.dependency.scala-xml>
-    <version.dependency.scalatest>3.0.5</version.dependency.scalatest>
-    <version.jvm.source>1.9</version.jvm.source>
-    <version.jvm.target>1.9</version.jvm.target>
-    <version.language.scala>${version.language.scala.major}.${version.language.scala.minor}</version.language.scala>
-    <version.language.scala.major>2.12</version.language.scala.major>
-    <version.language.scala.minor>4</version.language.scala.minor>
-    <version.plugin.scala>3.3.1</version.plugin.scala>
-    <version.plugin.scalatest>2.0.0</version.plugin.scalatest>
     <version.plugin.shade>3.1.0</version.plugin.shade>
-    <version.plugin.surefire>2.20.1</version.plugin.surefire>
   </properties>
 
   <dependencies>
     <dependency>
       <groupId>ch.qos.logback</groupId>
       <artifactId>logback-classic</artifactId>
-      <version>${version.depdendency.logback}</version>
+      <version>${version.dependency.logback}</version>
     </dependency>
     <dependency>
       <groupId>org.eclipse.jgit</groupId>
       <artifactId>org.eclipse.jgit</artifactId>
       <version>${version.dependency.jgit}</version>
     </dependency>
-    <dependency>
-      <groupId>org.scalatest</groupId>
-      <artifactId>scalatest_${version.language.scala.major}</artifactId>
-      <version>${version.dependency.scalatest}</version>
-      <scope>test</scope>
-    </dependency>
-    <dependency>
-      <groupId>org.scala-lang</groupId>
-      <artifactId>scala-library</artifactId>
-      <version>${version.language.scala}</version>
-    </dependency>
-    <dependency>
+    <dependency> <!-- TODO move to parent -->
       <groupId>org.scala-lang.modules</groupId>
-      <artifactId>scala-parser-combinators_${version.language.scala.major}</artifactId>
+      <artifactId>scala-parser-combinators_${version.language.scala.compat}</artifactId>
       <version>${version.dependency.scala-parser-combinators}</version>
-    </dependency>
-    <dependency>
-      <groupId>org.scala-lang.modules</groupId>
-      <artifactId>scala-xml_${version.language.scala.major}</artifactId>
-      <version>${version.dependency.scala-xml}</version>
     </dependency>
   </dependencies>
 
   <build>
     <finalName>${project.artifactId}</finalName>
     <plugins>
-      <plugin>
-        <groupId>net.alchim31.maven</groupId>
-        <artifactId>scala-maven-plugin</artifactId>
-        <version>${version.plugin.scala}</version>
-        <configuration>
-          <source>${version.jvm.source}</source>
-          <target>${version.jvm.target}</target>
-        </configuration>
-        <executions>
-          <execution>
-            <goals>
-              <goal>compile</goal>
-              <goal>testCompile</goal>
-            </goals>
-            <configuration>
-              <args>
-                <arg>-deprecation</arg>
-                <arg>-feature</arg>
-              </args>
-              <scalaVersion>${version.language.scala}</scalaVersion>
-            </configuration>
-          </execution>
-        </executions>
-      </plugin>
       <plugin>
         <groupId>org.apache.maven.plugins</groupId>
         <artifactId>maven-shade-plugin</artifactId>
@@ -117,32 +94,6 @@
                 </filter>
               </filters>
             </configuration>
-          </execution>
-        </executions>
-      </plugin>
-      <plugin>
-        <groupId>org.apache.maven.plugins</groupId>
-        <artifactId>maven-surefire-plugin</artifactId>
-        <version>${version.plugin.surefire}</version>
-        <configuration>
-          <skipTests>true</skipTests>
-        </configuration>
-      </plugin>
-      <plugin>
-        <groupId>org.scalatest</groupId>
-        <artifactId>scalatest-maven-plugin</artifactId>
-        <version>${version.plugin.scalatest}</version>
-        <configuration>
-          <reportsDirectory>${project.build.directory}/surefire-reports</reportsDirectory>
-          <junitxml>.</junitxml>
-          <filereports>WDF TestSuite.txt</filereports>
-        </configuration>
-        <executions>
-          <execution>
-            <id>test</id>
-            <goals>
-              <goal>test</goal>
-            </goals>
           </execution>
         </executions>
       </plugin>
