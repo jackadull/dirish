@@ -13,7 +13,7 @@
   <parent>
     <groupId>net.jackadull</groupId>
     <artifactId>scala-parent_2.12</artifactId>
-    <version>1.0.0</version>
+    <version>1.1.0</version>
   </parent>
 
   <licenses>
@@ -41,7 +41,6 @@
   <properties>
     <version.dependency.jgit>4.10.0.201712302008-r</version.dependency.jgit>
     <version.dependency.logback>1.2.3</version.dependency.logback>
-    <version.dependency.scala-parser-combinators>1.0.7</version.dependency.scala-parser-combinators>
     <version.plugin.shade>3.1.0</version.plugin.shade>
   </properties>
 
@@ -56,10 +55,9 @@
       <artifactId>org.eclipse.jgit</artifactId>
       <version>${version.dependency.jgit}</version>
     </dependency>
-    <dependency> <!-- TODO move to parent -->
+    <dependency>
       <groupId>org.scala-lang.modules</groupId>
       <artifactId>scala-parser-combinators_${version.language.scala.compat}</artifactId>
-      <version>${version.dependency.scala-parser-combinators}</version>
     </dependency>
   </dependencies>
 
