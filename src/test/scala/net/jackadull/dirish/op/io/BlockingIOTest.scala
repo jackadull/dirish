@@ -1,6 +1,6 @@
 package net.jackadull.dirish.op.io
 
-import java.nio.file.{Files, Paths}
+import java.nio.file.{Files, Path, Paths}
 
 import net.jackadull.dirish.op.combinator.{BlockingEitherCombinatorStyle, EitherV}
 import org.scalatest.FreeSpec
@@ -18,5 +18,11 @@ class BlockingIOTest extends FreeSpec with GenericIOTest {
   protected def createIO():TestBlockingIO = new TestBlockingIO(Files.createTempDirectory("blocking-io-test") toString)
   protected def getIOStyle(context:TestBlockingIO):TestBlockingIO = context
   protected def ioImplementationName:String = "BlockingIOStyle"
-  protected def tearDownIO(context:TestBlockingIO) {Files.delete(Paths get(context userHome))}
+  protected def tearDownIO(context:TestBlockingIO) {
+    def deleteRecursively(p:Path) {
+      Files.list(p).forEach(deleteRecursively)
+      Files.delete(p)
+    }
+    deleteRecursively(Paths get(context userHome))
+  }
 }
