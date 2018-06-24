@@ -17,7 +17,6 @@ import scala.language.postfixOps
 final case class PullAllRepositories(config:ProjectConfig) extends ProxyOp[Unit,OpError,MigrationStyle] {
   private val log = Log about this
 
-  // TODO introduce parallelism
   protected def innerOp:Op[Unit,OpError,MigrationStyle] =
     ResultIn(config.projectIDs filter {id ⇒ config.projectFirstRemote(id) isDefined}) foreach forProject
 

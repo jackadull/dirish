@@ -7,7 +7,6 @@ import org.scalatest.FreeSpec
 
 import scala.language.{higherKinds, postfixOps, reflectiveCalls}
 
-// TODO remove this as soon as style combinators are available
 class TestBlockingIO(val userHome:String)
 extends BlockingIOStyle[({type EitherInv[+A,+B] = Either[B,A]})#EitherInv](BlockingEitherCombinatorStyle, userHome) with BlockingEitherCombinatorStyle
 
@@ -19,5 +18,5 @@ class BlockingIOTest extends FreeSpec with GenericIOTest {
   protected def createIO():TestBlockingIO = new TestBlockingIO(Files.createTempDirectory("blocking-io-test") toString)
   protected def getIOStyle(context:TestBlockingIO):TestBlockingIO = context
   protected def ioImplementationName:String = "BlockingIOStyle"
-  protected def tearDownIO(context:TestBlockingIO) {Files.delete(Paths get(context userHome))} // TODO delete recursively
+  protected def tearDownIO(context:TestBlockingIO) {Files.delete(Paths get(context userHome))}
 }

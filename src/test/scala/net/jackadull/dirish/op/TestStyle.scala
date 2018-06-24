@@ -221,7 +221,7 @@ with LogStyle[EitherV] with NetworkStyle[EitherV] with SignalStyle[EitherV] {
     }
   }
 
-  def pullGitRepository(path:AbsolutePathSpec):EitherV[Unit,GenericGitError] = ??? // TODO implement this
+  def pullGitRepository(path:AbsolutePathSpec):EitherV[Unit,GenericGitError] = ???
 
   def readFileAsString(path:AbsolutePathSpec, charset:Charset):EitherV[String,ReadFileAsStringError] = visitFileNodeAt(path) {
     case Some(f:TestPlainFileNode) ⇒ (None, Right(new String(f.contents toArray, charset)))

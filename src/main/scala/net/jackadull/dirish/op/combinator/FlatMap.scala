@@ -8,7 +8,7 @@ import scala.language.{higherKinds, postfixOps}
 final case class FlatMap[R1,+R2,+E,-S[V[+_,+_]]<:CombinatorStyle[V]](v:Op[R1,E,S], f:R1⇒Op[R2,E,S]) extends Op[R2,E,S] {
   def instantiateIn[V[+_,+_]](style:S[V]):V[R2,E] = style flatMap (v instantiateIn style, f andThen (_ instantiateIn style))
 
-  /* TODO debug and fix:
+  /*
   def instantiateIn[V[+_,+_]](style:S[V]):V[R2,E] =
     if(v.isInstanceOf[FlatMap[_,_,_,S]]) FlatMap.nestedInstantiate(this, style)
     else style.flatMap(v instantiateIn style, {v2:R1 ⇒ f(v2) instantiateIn style})

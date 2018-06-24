@@ -72,7 +72,7 @@ object MigrationStep {
   }
 
   def applyInParallel(steps:Traversable[MigrationStep], soFar:Op[MigrationResult,Nothing,MigrationStyle]):Op[MigrationResult,Nothing,MigrationStyle] =
-    applyInSequence(steps, soFar) // TODO introduce actual parallelism
+    applyInSequence(steps, soFar)
 
   def applyInSequence(steps:Traversable[MigrationStep], soFar:Op[MigrationResult,Nothing,MigrationStyle]):Op[MigrationResult,Nothing,MigrationStyle] = {
     def singleStepOp(step:MigrationStep, state:MigrationResult):Op[MigrationResult,Nothing,MigrationStyle] =

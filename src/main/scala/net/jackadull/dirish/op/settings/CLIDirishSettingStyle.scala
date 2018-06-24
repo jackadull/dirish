@@ -39,6 +39,6 @@ final case class CLIDirishSettingStyle[V[+_,+_]](
     if(path.startsWith(userHomePath)) {
       val elementsAfterUserHome = userHomePath.relativize(path).iterator().asScala map {_.toString}
       Right(elementsAfterUserHome.foldLeft[AbsolutePathSpec](UserHomePathSpec) {_ / _})
-    } else Left(GenericMessageError(s"Cannot use '$pathString', because it is outside of the user home directory.")) // TODO allow other paths too
+    } else Left(GenericMessageError(s"Cannot use '$pathString', because it is outside of the user home directory."))
   }
 }

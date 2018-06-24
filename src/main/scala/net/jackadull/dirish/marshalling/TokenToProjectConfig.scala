@@ -155,7 +155,6 @@ object TokenToProjectConfig {
     }
   }
 
-  // TODO restructure the tokens so they better represent the signal structure
   private def toSignal(token:SignalToken):Signal[Boolean,OpError,MigrationStyle] = token match {
     case CachedSignalToken(uncached, ttl) ⇒
       val duration = toFiniteDuration(ttl)

@@ -229,8 +229,6 @@ private final case class ProjectConfigData(
       }
   }
 
-  // TODO what if I move a project into a sub-folder of that project?
-  // TODO what if I move a project into a parent folder of that project?
   def moveProject(id:UUID, newBaseDirectoryID:UUID, newLocalPath:RelativePathSpec) =
     if(!(baseDirectories contains newBaseDirectoryID)) Left(BaseDirectoryNotFoundForID(newBaseDirectoryID))
     else if(!(projects contains id)) Left(ProjectNotFoundForID(id))

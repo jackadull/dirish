@@ -20,7 +20,6 @@ object Migration {
     CombinatorStyle[V] with DirishSettingStyle[V] with GitStyle[V] with IOStyle[V] with LogStyle[V]
       with NetworkStyle[V] with SignalStyle[V]
 
-  // TODO if project shall be added, but base directory from the same location could not be moved or removed -> can't add project
   private[migration] def shouldNotPerformTransitively(changeInQuestion:ConfigChangeSpec, changesNotPerfomed:Traversable[ConfigChangeSpec]):Boolean =
     changesNotPerfomed exists {notPerformed ⇒ (changeInQuestion, notPerformed) match {
       case (a:BaseDirectoryAddedSpec, b:BaseDirectoryMovedSpec) if a.path == b.from ⇒ true

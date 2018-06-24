@@ -62,7 +62,7 @@ extends GitStyle[V] with UsingCombinator[V] {
         else if(f exists()) if(!f.delete()) throw new IOException(s"Failed to delete: $f")
       }
       val target = new File(toFile(path), ".git")
-      if(!target.isDirectory) throw new IOException(s"Not found (or not a directory): $target") // TODO introduce specific error types
+      if(!target.isDirectory) throw new IOException(s"Not found (or not a directory): $target")
       recurse(target)
     }, {case t ⇒ GenericThrowableError(s"Cannot remove Git repository at $path", t)})
 

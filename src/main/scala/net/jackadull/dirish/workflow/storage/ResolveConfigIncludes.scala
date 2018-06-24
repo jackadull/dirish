@@ -62,8 +62,6 @@ extends ProxyOp[ProjectConfigRootToken,OpError,StorageStyle] {
     None
   }
 
-  // TODO add include stack information to error messages
-
   private def loadRootContent(includePath:AbsolutePathSpec, includeDefinedIn:AbsolutePathSpec, alreadyLoaded:Set[AbsolutePathSpec]):Op[ProjectConfigRootToken,OpError,StorageStyle] =
     if(alreadyLoaded(includePath)) FailWith(GenericMessageError(s"Circular includes detected: $includePath"))
     else ReadFileAsString(includePath, UTF_8) >> {raw ⇒

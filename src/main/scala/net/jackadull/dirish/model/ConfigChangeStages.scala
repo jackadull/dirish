@@ -6,8 +6,6 @@ trait ConfigChangeStages extends ConfigChangeStageWithNextStage {
   override def nextStage:GitRemotesRemovedStage
 }
 
-// TODO add helpers for detecting dependencies and/or circularities
-
 sealed trait ConfigChangeStage
 sealed trait ConfigChangeStageWithNextStage extends ConfigChangeStage {
   def nextStage:ConfigChangeStage

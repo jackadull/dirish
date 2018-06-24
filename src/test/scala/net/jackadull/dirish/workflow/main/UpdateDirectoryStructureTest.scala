@@ -40,7 +40,7 @@ class UpdateDirectoryStructureTest extends FreeSpec with Matchers {
       normalPostUpdateConditions,
       directoryExists(UserHomePathSpec/"p2"/"prv"/"tool2"/"dirish"),
       isGitRepository(UserHomePathSpec/"p2"/"prv"/"tool2"/"dirish"),
-      fileDoesNotExist(UserHomePathSpec/"p2"/"prv"/"tool"/"dirish") // TODO remove last element here …
+      fileDoesNotExist(UserHomePathSpec/"p2"/"prv"/"tool"/"dirish")
     )
   }
 

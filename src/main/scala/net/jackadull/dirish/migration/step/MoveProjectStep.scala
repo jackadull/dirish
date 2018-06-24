@@ -11,7 +11,6 @@ import net.jackadull.dirish.path.CompositeAbsolutePathSpec
 
 import scala.language.postfixOps
 
-// TODO remove empty 'from' parents
 final case class MoveProjectStep(change:ProjectMovedSpec) extends MigrationStep {
   type C = ProjectMovedSpec
   protected def logFormat:MigrationLogFormat[ProjectMovedSpec] = new MigrationLogFormat[ProjectMovedSpec](MLVerb.Move, change) {
