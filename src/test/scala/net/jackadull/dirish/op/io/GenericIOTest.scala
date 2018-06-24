@@ -14,7 +14,7 @@ trait GenericIOTest extends Matchers with BeforeAndAfterAll {
   this:FreeSpec ⇒
 
   type TestIOV[+_,+_]
-  type TestIOStyle<:(CombinatorStyle[TestIOV] with IOStyle[TestIOV])
+  type TestIOStyle<:CombinatorStyle[TestIOV] with IOStyle[TestIOV]
   type TestIOContext<:AnyRef
 
   protected def createIO():TestIOContext
@@ -37,6 +37,7 @@ trait GenericIOTest extends Matchers with BeforeAndAfterAll {
       }
 
       executionResult(op) match {
+        case Left(error:MoveToTrashNotSupported) ⇒ cancel(error toString)
         case Left(error) ⇒ fail(error toString)
         case Right(_) ⇒ succeed
       }
