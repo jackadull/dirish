@@ -38,6 +38,11 @@
     <url>https://github.com/jackadull/dirish</url>
   </scm>
 
+  <issueManagement>
+    <system>GitHub Issues</system>
+    <url>https://github.com/orgs/jackadull/projects/1</url>
+  </issueManagement>
+
   <properties>
     <version.dependency.jgit>4.10.0.201712302008-r</version.dependency.jgit>
     <version.dependency.logback>1.2.3</version.dependency.logback>
