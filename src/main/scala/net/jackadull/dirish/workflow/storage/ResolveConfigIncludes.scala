@@ -7,7 +7,7 @@ import net.jackadull.dirish.op.Op.ProxyOp
 import net.jackadull.dirish.op.combinator.{FailWith, ResultIn}
 import net.jackadull.dirish.op.io.ReadFileAsString
 import net.jackadull.dirish.op.{GenericMessageError, Op, OpError}
-import net.jackadull.dirish.path.{AbsolutePathSpec, CompositeAbsolutePathSpec}
+import net.jackadull.dirish.path.{AbsolutePathSpec, CompositeAbsolutePathSpec, UserHomePathSpec}
 
 import scala.language.postfixOps
 
@@ -82,9 +82,12 @@ extends ProxyOp[ProjectConfigRootToken,OpError,StorageStyle] {
     }
 
 
-  private def resolveIncludedPath(elements:PathElementsToken, base:AbsolutePathSpec):AbsolutePathSpec = base match {
-    case CompositeAbsolutePathSpec(parent, _) ⇒ elements.elements.foldLeft(parent) {_ / _.name}
-    case _ ⇒ elements.elements.foldLeft(base) {_ / _.name}
+  private def resolveIncludedPath(elements:PathElementsToken, base:AbsolutePathSpec):AbsolutePathSpec = elements match {
+    case PathElementsToken(List(PathElementToken("$HOME"), rest@_*)) ⇒
+      resolveIncludedPath(elements.copy(elements = rest toList), UserHomePathSpec)
+    case _ ⇒ base match {
+      case CompositeAbsolutePathSpec(parent, _) ⇒ elements.elements.foldLeft(parent) {_ / _.name}
+      case _ ⇒ elements.elements.foldLeft(base) {_ / _.name}
+    }
   }
-
 }

@@ -63,10 +63,14 @@ object ProjectConfigParser extends RegexParsers {
   private def hostReachable:Parser[HostReachableToken] = host ~ hostName ~ reachable ~ within ~ duration ^^ {
     case _ ~ hn ~ _ ~ _ ~ d ⇒ HostReachableToken(hn, d)
   }
-  private def includeDirective:Parser[IncludeDirectiveToken] = include ~ pathElements ^^ {
+  private def includeDirective:Parser[IncludeDirectiveToken] = include ~ path ^^ {
     case _ ~ path ⇒ IncludeDirectiveToken(path)
   }
+  private def path:Parser[PathElementsToken] = pathRelativeToHome | pathElements
   private def pathElements:Parser[PathElementsToken] = rep1sep(pathElement, pathDelimiter) ^^ PathElementsToken
+  private def pathRelativeToHome:Parser[PathElementsToken] = "$HOME" ~ pathDelimiter ~ pathElements ^^ {
+    case _ ~ _ ~ remPath ⇒ remPath.copy(elements = PathElementToken("$HOME") :: remPath.elements)
+  }
   private def port:Parser[PortToken] = intNumber ^^ PortToken
   private def projectDef:Parser[ProjectDefToken] = pathElements ~ uuidSeparator ~ uuid ~ opt(blockOpen ~ (projectProperties >> validateProjectProperties) ~ blockClose) ^^ {
     case path ~ _ ~ id ~ propertiesOpt ⇒
