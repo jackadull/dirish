@@ -1,5 +1,6 @@
 package net.jackadull.dirish.main
 
+import com.jcraft.jsch.JSch
 import net.jackadull.dirish.cli._
 import net.jackadull.dirish.op.combinator.{BlockingEitherCombinatorStyle, EitherV, FailWith}
 import net.jackadull.dirish.op.git.BlockingGitStyle
@@ -19,6 +20,7 @@ import scala.language.{higherKinds, postfixOps}
 
 object Main extends App {
   LogSetup()
+  JSch.setConfig("StrictHostKeyChecking", "no")
 
   def executableName:String = "dirish"
 

@@ -2,6 +2,7 @@ package net.jackadull.dirish.op.git
 
 import java.io.{File, IOException}
 
+import com.jcraft.jsch.JSch
 import net.jackadull.dirish.op.GenericThrowableError
 import net.jackadull.dirish.op.combinator.{BlockingEitherCombinatorStyle, CombinatorStyle, EitherV}
 import net.jackadull.dirish.op.util.UsingCombinator
