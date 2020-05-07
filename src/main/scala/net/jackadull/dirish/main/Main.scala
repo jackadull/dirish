@@ -1,6 +1,6 @@
 package net.jackadull.dirish.main
 
-import com.jcraft.jsch.JSch
+import com.jcraft.jsch.{JSch, Session}
 import net.jackadull.dirish.cli._
 import net.jackadull.dirish.op.combinator.{BlockingEitherCombinatorStyle, EitherV, FailWith}
 import net.jackadull.dirish.op.git.BlockingGitStyle
@@ -15,12 +15,17 @@ import net.jackadull.dirish.workflow.main.UpdateDirectoryStructure
 import net.jackadull.dirish.workflow.repos.GetAllRepositoryStates.RepositoryState
 import net.jackadull.dirish.workflow.repos.{GetAllRepositoryStates, PullAllRepositories}
 import net.jackadull.dirish.workflow.storage.LoadInternalDB
+import org.eclipse.jgit.transport.{JschConfigSessionFactory, OpenSshConfig, SshSessionFactory}
 
 import scala.language.{higherKinds, postfixOps}
 
 object Main extends App {
   LogSetup()
   JSch.setConfig("StrictHostKeyChecking", "no")
+  SshSessionFactory.setInstance(new JschConfigSessionFactory {
+    override def configure(hc:OpenSshConfig.Host, session:Session):Unit =
+      session.setConfig("StrictHostKeyChecking", "no")
+  })
 
   def executableName:String = "dirish"
 
