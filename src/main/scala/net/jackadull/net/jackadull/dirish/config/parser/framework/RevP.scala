@@ -8,7 +8,7 @@ import scala.annotation.tailrec
 /** Reversible, partially isomorphic, composable parser. Can parse input to the target type (or return an error), and
  * can also generate the source text, given an instance of the target type. */
 trait RevP[A] {
-  def generate(instance:A, write:WriteState):WriteState
+  def generate[W<:WriteState[W]](instance:A, write:W):W
   def matcher:Matcher
   def parse(read:ReadState):ParseResult[A]
 
@@ -61,13 +61,14 @@ object RevP {
   private def ?<[A](a:RevP[A]):RevP[Option[A]] = OptRevP(a)
 
   trait Matcher extends RevP[Unit] {
-    def generate(write:WriteState):WriteState
-    override def generate(instance:Unit, write:WriteState):WriteState = generate(write)
+    def generate[W<:WriteState[W]](write:W):W
+
+    override def generate[W<:WriteState[W]](instance:Unit, write:W):W = generate(write)
     override def matcher:Matcher = this
   }
 
   private final case class AltMatcher(alts:List[Matcher]) extends Matcher {
-    override def generate(write:WriteState):WriteState = alts.headOption.map(_.generate(write)).getOrElse(write)
+    override def generate[W<:WriteState[W]](write:W):W = alts.headOption.map(_.generate(write)).getOrElse(write)
     override def parse(read:ReadState):ParseResult[Unit] = {
       @tailrec def recurse(r:ReadState, a:List[Matcher]):ParseResult[Unit] = a match {
         case fst :: rst => fst.parse(r) match {
@@ -81,32 +82,32 @@ object RevP {
   }
 
   private object Empty extends Matcher {
-    override def generate(write:WriteState):WriteState = write
+    override def generate[W<:WriteState[W]](write:W):W = write
     override def parse(read:ReadState):ParseResult[Unit] = ParseResult.ParseSuccess((), read)
   }
 
   private object EOF extends Matcher {
-    override def generate(write:WriteState):WriteState = write
+    override def generate[W<:WriteState[W]](write:W):W = write
     override def parse(read:ReadState):ParseResult[Unit] = read.expectingEOF
   }
 
   private final case class OneChar(char:Char) extends Matcher {
-    override def generate(write:WriteState):WriteState = write.appending(char)
+    override def generate[W<:WriteState[W]](write:W):W = write.appending(char)
     override def parse(read:ReadState):ParseResult[Unit] = read.expecting(char)
   }
 
   private final case class OneString(string:String) extends Matcher {
-    override def generate(write:WriteState):WriteState = write.appending(string)
+    override def generate[W<:WriteState[W]](write:W):W = write.appending(string)
     override def parse(read:ReadState):ParseResult[Unit] = read.expecting(string)
   }
 
   private final case class OptMatcher(optional:Matcher) extends Matcher {
-    override def generate(write:WriteState):WriteState = write
+    override def generate[W<:WriteState[W]](write:W):W = write
     override def parse(read:ReadState):ParseResult[Unit] = optional.parse(read).orElse(ParseSuccess((), read))
   }
 
   private final case class OptRevP[A](optional:RevP[A]) extends RevP[Option[A]] {
-    override def generate(instance:Option[A], write:WriteState):WriteState =
+    override def generate[W<:WriteState[W]](instance:Option[A], write:W):W =
       instance.map(optional.generate(_, write)).getOrElse(write)
     override def matcher:Matcher = optional.matcher.?
     override def parse(read:ReadState):ParseResult[Option[A]] =
@@ -114,7 +115,7 @@ object RevP {
   }
 
   private final case class SeqMatcher(elements:List[Matcher]) extends Matcher {
-    override def generate(write:WriteState):WriteState = elements.foldLeft(write)(_.appending(_))
+    override def generate[W<:WriteState[W]](write:W):W = elements.foldLeft(write)(_.appending(_))
     override def parse(read:ReadState):ParseResult[Unit] = {
       @tailrec def recurse(r:ReadState, e:List[Matcher]):ParseResult[Unit] = e match {
         case fst :: rst => fst.parse(r) match {
@@ -128,7 +129,7 @@ object RevP {
   }
 
   private final case class SeqSurround[A](left:Matcher, mid:RevP[A], right:Matcher) extends RevP[A] {
-    override def generate(instance:A, write:WriteState):WriteState =
+    override def generate[W<:WriteState[W]](instance:A, write:W):W =
       right.generate(mid.generate(instance, left.generate(write)))
     override def matcher:Matcher = left ~ mid ~ right
     override def parse(read:ReadState):ParseResult[A] =

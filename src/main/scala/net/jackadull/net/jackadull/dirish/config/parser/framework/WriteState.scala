@@ -2,9 +2,10 @@ package net.jackadull.net.jackadull.dirish.config.parser.framework
 
 import net.jackadull.net.jackadull.dirish.config.parser.framework.RevP.Matcher
 
-sealed trait WriteState {
-  def appending(char:Char):WriteState
-  def appending(string:String):WriteState
+sealed trait WriteState[+Repr<:WriteState[Repr]] {
+  this:Repr=>
+  def appending(char:Char):Repr
+  def appending(string:String):Repr
 
-  def appending(matcher:Matcher):WriteState = matcher.generate(this)
+  def appending(matcher:Matcher):Repr = matcher.generate(this)
 }
