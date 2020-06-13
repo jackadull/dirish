@@ -6,6 +6,8 @@ sealed trait ReadState {
   def expecting(char:Char):ParseResult[Unit]
   def expecting(string:String, index:Int=0):ParseResult[Unit]
   def expectingEOF:ParseResult[Unit]
+
+  def success[A](result:A):ParseSuccess[A] = ParseSuccess(result, this)
 }
 object ReadState {
   trait BeforeChar extends ReadState {

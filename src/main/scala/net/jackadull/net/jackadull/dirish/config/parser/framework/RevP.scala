@@ -83,7 +83,7 @@ object RevP {
 
   private object Empty extends Matcher {
     override def generate[W<:WriteState[W]](write:W):W = write
-    override def parse(read:ReadState):ParseResult[Unit] = ParseResult.ParseSuccess((), read)
+    override def parse(read:ReadState):ParseResult[Unit] = read.success(())
   }
 
   private object EOF extends Matcher {
@@ -103,7 +103,7 @@ object RevP {
 
   private final case class OptMatcher(optional:Matcher) extends Matcher {
     override def generate[W<:WriteState[W]](write:W):W = write
-    override def parse(read:ReadState):ParseResult[Unit] = optional.parse(read).orElse(ParseSuccess((), read))
+    override def parse(read:ReadState):ParseResult[Unit] = optional.parse(read).orElse(read.success(()))
   }
 
   private final case class OptRevP[A](optional:RevP[A]) extends RevP[Option[A]] {
@@ -111,7 +111,7 @@ object RevP {
       instance.map(optional.generate(_, write)).getOrElse(write)
     override def matcher:Matcher = optional.matcher.?
     override def parse(read:ReadState):ParseResult[Option[A]] =
-      optional.parse(read).mapResult(Some(_)).orElse(ParseSuccess(None, read))
+      optional.parse(read).mapResult(Some(_)).orElse(read.success(None))
   }
 
   private final case class SeqMatcher(elements:List[Matcher]) extends Matcher {
@@ -122,7 +122,7 @@ object RevP {
           case ParseSuccess(_, r2) => recurse(r2, rst)
           case noSuccess => noSuccess
         }
-        case Nil => ParseSuccess((), r)
+        case Nil => r.success(())
       }
       recurse(read, elements)
     }
