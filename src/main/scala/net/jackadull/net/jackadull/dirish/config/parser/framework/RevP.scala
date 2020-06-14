@@ -1,9 +1,10 @@
 package net.jackadull.net.jackadull.dirish.config.parser.framework
 
-import net.jackadull.net.jackadull.dirish.config.parser.framework.ParseResult.{ParseError, ParseSuccess}
+import net.jackadull.net.jackadull.dirish.config.parser.framework.ParseResult.{ParseError, ParseFailure, ParseSuccess}
 import net.jackadull.net.jackadull.dirish.config.parser.framework.RevP.Matcher
 
 import scala.annotation.tailrec
+import scala.language.implicitConversions
 
 /** Reversible, partially isomorphic, composable parser. Can parse input to the target type (or return an error), and
  * can also generate the source text, given an instance of the target type. */
@@ -19,11 +20,13 @@ trait RevP[A] {
   def |(that:RevP[_]):Matcher = RevP.|(matcher, that.matcher)
   def ? :Matcher = RevP.?(matcher)
   def ?< :RevP[Option[A]] = RevP.?<(this)
+  def * :Matcher = RevP.*(matcher)
+  def *< :RevP[Seq[A]] = RevP.*<(this)
   def <+>[B](that:RevP[B]):RevP[(A,B)] = RevP.<+>(this, that)
 }
 object RevP {
-  def apply(char:Char):Matcher = OneChar(char)
-  def apply(string:String):Matcher = OneString(string)
+  implicit def apply(char:Char):Matcher = OneChar(char)
+  implicit def apply(string:String):Matcher = OneString(string)
   def empty:Matcher = Empty
   def eof:Matcher = EOF
 
@@ -68,6 +71,13 @@ object RevP {
   }
 
   private def ?<[A](a:RevP[A]):RevP[Option[A]] = OptRevP(a)
+
+  private def *(a:Matcher):Matcher = a match {
+    case _:SeqRepeatMatcher => a
+    case _ => SeqRepeatMatcher(a)
+  }
+
+  private def *<[A](a:RevP[A]):RevP[Seq[A]] = SeqRepeatRevP(a)
 
   private def <+>[A,B](a:RevP[A], b:RevP[B]):RevP[(A,B)] = TwoTupled(a, b)
 
@@ -143,6 +153,29 @@ object RevP {
         case Nil => r.success(())
       }
       recurse(read, elements)
+    }
+  }
+
+  private final case class SeqRepeatMatcher(element:Matcher) extends Matcher {
+    override def generate[W<:WriteState[W]](write:W):W = write
+    @tailrec override final def parse(read:ReadState):ParseResult[Unit] = element.parse(read) match {
+      case ParseSuccess(_, r2) => parse(r2)
+      case _:ParseFailure => read.success(())
+      case error => error
+    }
+  }
+
+  private final case class SeqRepeatRevP[A](element:RevP[A]) extends RevP[Seq[A]] {
+    override def generate[W<:WriteState[W]](instance:Seq[A], write:W):W =
+      instance.foldLeft(write)((w, e) => element.generate(e, w))
+    override def matcher:Matcher = element.matcher.*
+    override def parse(read:ReadState):ParseResult[Seq[A]] = {
+      @tailrec def recurse(r:ReadState, parsedReverse:List[A]=Nil):ParseResult[Seq[A]] = element.parse(r) match {
+        case ParseSuccess(element, r2) => recurse(r2, element :: parsedReverse)
+        case _:ParseFailure => r.success(parsedReverse.toVector.reverse)
+        case error:ParseError => error
+      }
+      recurse(read)
     }
   }
 
