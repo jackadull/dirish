@@ -19,6 +19,7 @@ trait RevP[A] {
   def |(that:RevP[_]):Matcher = RevP.|(matcher, that.matcher)
   def ? :Matcher = RevP.?(matcher)
   def ?< :RevP[Option[A]] = RevP.?<(this)
+  def <+>[B](that:RevP[B]):RevP[(A,B)] = RevP.<+>(this, that)
 }
 object RevP {
   def apply(char:Char):Matcher = OneChar(char)
@@ -43,12 +44,14 @@ object RevP {
   private def ~>[A](a:Matcher, b:RevP[A]):RevP[A] = (a, b) match {
     case (Empty, _) => b
     case (_, SeqSurround(l, m, r)) => SeqSurround(a~l, m, r)
+    case (_, TwoTupled(l, r)) => TwoTupled(a ~> l, r)
     case _ => SeqSurround(a, b, empty)
   }
 
   private def <~[A](a:RevP[A], b:Matcher):RevP[A] = (a, b) match {
     case (_, Empty) => a
     case (SeqSurround(l, m, r), _) => SeqSurround(l, m, r~b)
+    case (TwoTupled(l, r), _) => TwoTupled(l, r <~ b)
     case _ => SeqSurround(empty, a, b)
   }
 
@@ -65,6 +68,8 @@ object RevP {
   }
 
   private def ?<[A](a:RevP[A]):RevP[Option[A]] = OptRevP(a)
+
+  private def <+>[A,B](a:RevP[A], b:RevP[B]):RevP[(A,B)] = TwoTupled(a, b)
 
   trait Matcher extends RevP[Unit] {
     def generate[W<:WriteState[W]](write:W):W
@@ -147,5 +152,13 @@ object RevP {
     override def matcher:Matcher = left ~ mid ~ right
     override def parse(read:ReadState):ParseResult[A] =
       left.parse(read).flatMap((_, r2) => mid.parse(r2).flatMap((result, r3) => right.parse(r3).mapResult(_ => result)))
+  }
+
+  private final case class TwoTupled[A,B](left:RevP[A], right:RevP[B]) extends RevP[(A,B)] {
+    override def generate[W<:WriteState[W]](instance:(A,B), write:W):W =
+      right.generate(instance._2, left.generate(instance._1, write))
+    override def matcher:Matcher = left.matcher ~ right.matcher
+    override def parse(read:ReadState):ParseResult[(A,B)] =
+      left.parse(read).flatMap((l, r2) => right.parse(r2).mapResult((l, _)))
   }
 }
