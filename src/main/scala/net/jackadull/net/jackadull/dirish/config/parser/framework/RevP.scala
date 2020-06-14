@@ -11,9 +11,9 @@ trait RevP[A] {
   def generate[W<:WriteState[W]](instance:A, write:W):W
   def matcher:Matcher
   def parse(read:ReadState):ParseResult[A]
-  def ~(that:RevP[_]):Matcher = RevP.~(matcher, that.matcher)
 
   def map[A2](iso:A<=>A2):RevP[A2] = RevP.Mapped(this, iso)
+  def ~(that:RevP[_]):Matcher = RevP.~(matcher, that.matcher)
   def ~>[A2](that:RevP[A2]):RevP[A2] = RevP.~>(matcher, that)
   def <~(that:RevP[_]):RevP[A] = RevP.<~(this, that.matcher)
   def |(that:RevP[_]):Matcher = RevP.|(matcher, that.matcher)
@@ -95,6 +95,7 @@ object RevP {
 
   private final case class Mapped[A,A2](mapped:RevP[A], iso:A<=>A2) extends RevP[A2] {
     override def generate[W<:WriteState[W]](instance:A2, write:W):W = mapped.generate(iso.from(instance), write)
+    override def map[A3](iso:A2<=>A3):RevP[A3] = Mapped(mapped, this.iso.andThen(iso))
     override def matcher:Matcher = mapped.matcher
     override def parse(read:ReadState):ParseResult[A2] = mapped.parse(read).mapResult(iso.to)
   }
