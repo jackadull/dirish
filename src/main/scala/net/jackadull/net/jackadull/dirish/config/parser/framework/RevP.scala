@@ -22,6 +22,8 @@ trait RevP[A] {
   def ?< :RevP[Option[A]] = RevP.?<(this)
   def * :Matcher = RevP.*(matcher)
   def *< :RevP[Seq[A]] = RevP.*<(this)
+  def + :Matcher = RevP.+(matcher)
+  def +< :RevP[Seq[A]] = RevP.+<(this)
   def <:>[B](that:RevP[B]):RevP[(A,B)] = RevP.<:>(this, that)
 }
 object RevP {
@@ -78,6 +80,10 @@ object RevP {
   }
 
   private def *<[A](a:RevP[A]):RevP[Seq[A]] = SeqRepeatRevP(a)
+
+  private def +[A](a:Matcher):Matcher = a ~ a.*
+
+  private def +<[A](a:RevP[A]):RevP[Seq[A]] = SeqRepeatRevP1(a)
 
   private def <:>[A,B](a:RevP[A], b:RevP[B]):RevP[(A,B)] = TwoTupled(a, b)
 
@@ -176,6 +182,24 @@ object RevP {
         case error:ParseError => error
       }
       recurse(read)
+    }
+  }
+
+  private final case class SeqRepeatRevP1[A](element:RevP[A]) extends RevP[Seq[A]] {
+    override def generate[W<:WriteState[W]](instance:Seq[A], write:W):W =
+      instance.foldLeft(write)((w, e) => element.generate(e, w))
+    override def matcher:Matcher = element.matcher.+
+    override def parse(read:ReadState):ParseResult[Seq[A]] = {
+      @tailrec def recurse(r:ReadState, parsedReverse:List[A]):ParseResult[Seq[A]] = element.parse(r) match {
+        case ParseSuccess(element, r2) => recurse(r2, element :: parsedReverse)
+        case _:ParseFailure => r.success(parsedReverse.toVector.reverse)
+        case error:ParseError => error
+      }
+      element.parse(read) match {
+        case ParseSuccess(first, r2) => recurse(r2, List(first))
+        case error:ParseError => error
+        case failure:ParseFailure => failure
+      }
     }
   }
 
