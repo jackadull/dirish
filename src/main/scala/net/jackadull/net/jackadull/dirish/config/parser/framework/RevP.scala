@@ -22,7 +22,7 @@ trait RevP[A] {
   def ?< :RevP[Option[A]] = RevP.?<(this)
   def * :Matcher = RevP.*(matcher)
   def *< :RevP[Seq[A]] = RevP.*<(this)
-  def <+>[B](that:RevP[B]):RevP[(A,B)] = RevP.<+>(this, that)
+  def <:>[B](that:RevP[B]):RevP[(A,B)] = RevP.<:>(this, that)
 }
 object RevP {
   implicit def apply(char:Char):Matcher = OneChar(char)
@@ -79,7 +79,7 @@ object RevP {
 
   private def *<[A](a:RevP[A]):RevP[Seq[A]] = SeqRepeatRevP(a)
 
-  private def <+>[A,B](a:RevP[A], b:RevP[B]):RevP[(A,B)] = TwoTupled(a, b)
+  private def <:>[A,B](a:RevP[A], b:RevP[B]):RevP[(A,B)] = TwoTupled(a, b)
 
   trait Matcher extends RevP[Unit] {
     def generate[W<:WriteState[W]](write:W):W
