@@ -12,7 +12,7 @@ trait RevP[A] {
   def matcher:Matcher
   def parse(read:ReadState):ParseResult[A]
 
-  def map[A2](iso:A<=>A2):RevP[A2] = RevP.Mapped(this, iso)
+  def map[A2](iso:A<=>A2):RevP[A2] = RevP.map(this, iso)
   def ~(that:RevP[_]):Matcher = RevP.~(matcher, that.matcher)
   def ~>[A2](that:RevP[A2]):RevP[A2] = RevP.~>(matcher, that)
   def <~(that:RevP[_]):RevP[A] = RevP.<~(this, that.matcher)
@@ -25,6 +25,11 @@ object RevP {
   def apply(string:String):Matcher = OneString(string)
   def empty:Matcher = Empty
   def eof:Matcher = EOF
+
+  private def map[A,B](a:RevP[A], iso:A<=>B):RevP[B] = a match {
+    case Mapped(mapped, iso1) => Mapped(mapped, iso1.andThen(iso))
+    case _ => Mapped(a, iso)
+  }
 
   private def ~(a:Matcher, b:Matcher):Matcher = (a, b) match {
     case (Empty, _) => b
@@ -95,7 +100,6 @@ object RevP {
 
   private final case class Mapped[A,A2](mapped:RevP[A], iso:A<=>A2) extends RevP[A2] {
     override def generate[W<:WriteState[W]](instance:A2, write:W):W = mapped.generate(iso.from(instance), write)
-    override def map[A3](iso:A2<=>A3):RevP[A3] = Mapped(mapped, this.iso.andThen(iso))
     override def matcher:Matcher = mapped.matcher
     override def parse(read:ReadState):ParseResult[A2] = mapped.parse(read).mapResult(iso.to)
   }
