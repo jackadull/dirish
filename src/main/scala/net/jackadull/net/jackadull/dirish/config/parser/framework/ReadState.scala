@@ -7,6 +7,7 @@ sealed trait ReadState {
   def expecting(string:String, index:Int=0):ParseResult[Unit]
   def expectingEOF:ParseResult[Unit]
 
+  def failure():ParseFailure = ParseFailure()
   def success[A](result:A):ParseSuccess[A] = ParseSuccess(result, this)
 }
 object ReadState {

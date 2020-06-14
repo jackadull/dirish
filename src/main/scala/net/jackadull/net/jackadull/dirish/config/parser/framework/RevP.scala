@@ -11,8 +11,9 @@ trait RevP[A] {
   def generate[W<:WriteState[W]](instance:A, write:W):W
   def matcher:Matcher
   def parse(read:ReadState):ParseResult[A]
-
   def ~(that:RevP[_]):Matcher = RevP.~(matcher, that.matcher)
+
+  def map[A2](iso:A<=>A2):RevP[A2] = RevP.Mapped(this, iso)
   def ~>[A2](that:RevP[A2]):RevP[A2] = RevP.~>(matcher, that)
   def <~(that:RevP[_]):RevP[A] = RevP.<~(this, that.matcher)
   def |(that:RevP[_]):Matcher = RevP.|(matcher, that.matcher)
@@ -70,12 +71,13 @@ object RevP {
   private final case class AltMatcher(alts:List[Matcher]) extends Matcher {
     override def generate[W<:WriteState[W]](write:W):W = alts.headOption.map(_.generate(write)).getOrElse(write)
     override def parse(read:ReadState):ParseResult[Unit] = {
-      @tailrec def recurse(r:ReadState, a:List[Matcher]):ParseResult[Unit] = a match {
+      @tailrec def recurse(r:ReadState, a:List[Matcher]):ParseResult[Unit] = a match { // TODO combine failures
         case fst :: rst => fst.parse(r) match {
           case success:ParseSuccess[Unit] => success
           case error:ParseError => error
           case _ => recurse(r, rst)
         }
+        case Nil => r.failure()
       }
       recurse(read, alts)
     }
@@ -89,6 +91,12 @@ object RevP {
   private object EOF extends Matcher {
     override def generate[W<:WriteState[W]](write:W):W = write
     override def parse(read:ReadState):ParseResult[Unit] = read.expectingEOF
+  }
+
+  private final case class Mapped[A,A2](mapped:RevP[A], iso:A<=>A2) extends RevP[A2] {
+    override def generate[W<:WriteState[W]](instance:A2, write:W):W = mapped.generate(iso.from(instance), write)
+    override def matcher:Matcher = mapped.matcher
+    override def parse(read:ReadState):ParseResult[A2] = mapped.parse(read).mapResult(iso.to)
   }
 
   private final case class OneChar(char:Char) extends Matcher {
