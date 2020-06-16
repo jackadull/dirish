@@ -27,12 +27,19 @@ object RevP2 {
           if(src.isSuccess(s1)) recurse(s1, rst) else s1
         case Nil => s0
       }
-      recurse(s, elements)
+      if(src.isSuccess(s)) recurse(s, elements) else s
     }
   }
 
   private final case class RevPSurround[A](left:Match, mid:RevP2[A], right:Match) extends RevP2[A] {
-    override def apply[S[+_]](src:Src[S]):S[Nothing]<=>S[A] =
-      mid(src) // TODO implement l and r
+    override def apply[S[+_]](src:Src[S]):S[Nothing]<=>S[A] = {
+      val sMid:S[Nothing]<=>S[A] = left(src).andThen(mid(src))
+      val sRight:S[Nothing]<=>S[Nothing] = right(src)
+      val carryRight:S[A]<=>S[A] = <=>( // TODO this looks suspiciously like something generic
+        r0 => sRight.to.andThen(src.carry(_, r0))(src.empty(r0)),
+        w0 => sRight.from.andThen(src.carry(_, w0))(src.empty(w0))
+      )
+      sMid.andThen(carryRight)
+    }
   }
 }
