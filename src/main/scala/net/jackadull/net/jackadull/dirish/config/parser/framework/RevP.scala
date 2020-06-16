@@ -4,7 +4,7 @@ import net.jackadull.net.jackadull.dirish.config.parser.framework.ParseResult.{P
 import net.jackadull.net.jackadull.dirish.config.parser.framework.RevP.Matcher
 
 import scala.annotation.tailrec
-import scala.language.implicitConversions
+import scala.language.{existentials, implicitConversions}
 
 /** Reversible, partially isomorphic, composable parser. Can parse input to the target type (or return an error), and
  * can also generate the source text, given an instance of the target type. */
@@ -31,6 +31,13 @@ object RevP {
   implicit def apply(string:String):Matcher = OneString(string)
   def empty:Matcher = Empty
   def eof:Matcher = EOF
+
+  trait Matcher extends RevP[Unit] {
+    def generate[W<:WriteState[W]](write:W):W
+
+    override def generate[W<:WriteState[W]](instance:Unit, write:W):W = generate(write)
+    override def matcher:Matcher = this
+  }
 
   private def map[A,B](a:RevP[A], iso:A<=>B):RevP[B] = a match {
     case Mapped(mapped, iso1) => Mapped(mapped, iso1.andThen(iso))
@@ -86,13 +93,6 @@ object RevP {
   private def +<[A](a:RevP[A]):RevP[Seq[A]] = SeqRepeatRevP1(a)
 
   private def <:>[A,B](a:RevP[A], b:RevP[B]):RevP[(A,B)] = TwoTupled(a, b)
-
-  trait Matcher extends RevP[Unit] {
-    def generate[W<:WriteState[W]](write:W):W
-
-    override def generate[W<:WriteState[W]](instance:Unit, write:W):W = generate(write)
-    override def matcher:Matcher = this
-  }
 
   private final case class AltMatcher(alts:List[Matcher]) extends Matcher {
     override def generate[W<:WriteState[W]](write:W):W = alts.headOption.map(_.generate(write)).getOrElse(write)
