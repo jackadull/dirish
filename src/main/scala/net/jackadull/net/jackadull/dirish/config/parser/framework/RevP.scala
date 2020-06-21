@@ -164,7 +164,7 @@ object RevP {
 
   private final case class SeqRepeatMatcher(element:Matcher) extends Matcher {
     override def generate[W<:WriteState[W]](write:W):W = write
-    @tailrec override final def parse(read:ReadState):ParseResult[Unit] = element.parse(read) match {
+    @tailrec override def parse(read:ReadState):ParseResult[Unit] = element.parse(read) match {
       case ParseSuccess(_, r2) => parse(r2)
       case _:ParseFailure => read.success(())
       case error => error
