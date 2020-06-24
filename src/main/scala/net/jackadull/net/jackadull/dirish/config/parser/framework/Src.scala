@@ -1,10 +1,11 @@
 package net.jackadull.net.jackadull.dirish.config.parser.framework
 
 trait Src[S[+_]] {
-  def apply[A](s:S[A], char:Char):S[A]
-  def carry[A](empty:S[Any], payload:S[A]):S[A]
-  def isError(s:S[Any]):Boolean // TODO is this needed?
-  def isFailure(s:S[Any]):Boolean // TODO is this needed?
+  def apply(s:S[Any], char:Char):S[Unit]
+  def copy[A](from:S[A], to:S[Any]):S[A]
+  def fail[A](s:S[A], message:String):S[A]
+  def flatMap[A,A2](s:S[A])(f:A=>S[A2]):S[A2]
   def isSuccess(s:S[Any]):Boolean
-  def orElse[A](s:S[A], onFailure: =>S[A]):S[A]
+  def map[A,A2](s:S[A])(f:A=>A2):S[A2]
+  def set[A](s:S[Any], v:A):S[A]
 }
