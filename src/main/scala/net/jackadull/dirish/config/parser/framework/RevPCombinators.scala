@@ -15,8 +15,8 @@ trait RevPCombinators[A] {
   def <:>[B](that:RevP[B]):RevP[(A,B)] = RevPCombinators.<:>(this, that)
 
   def ? :Matcher = RevPCombinators.?(this)
-  def * :Matcher = RevPCombinators.*(this)
-  def + :Matcher = RevPCombinators.+(this)
+  def :* :Matcher = RevPCombinators.:*(this)
+  def :+ :Matcher = RevPCombinators.:+(this)
 
   def ~(that:RevP[_]):Matcher = RevPCombinators.~(this, that)
   def |[B](that:RevP[B]):Matcher = RevPCombinators.|(this, that)
@@ -34,8 +34,8 @@ private object RevPCombinators {
     case _ => Mapped(p, f)
   }
 
-  def ~>[A,B](p1:RevP[A], p2:RevP[B]):RevP[B] = p1.matcher <:> p2 map <=>.tuple2_2(())
-  def <~[A,B](p1:RevP[A], p2:RevP[B]):RevP[A] = p1 <:> p2.matcher map <=>.tuple2_1(())
+  def ~>[A,B](p1:RevP[A], p2:RevP[B]):RevP[B] = ExtractTuple2_2(p1.matcher <:> p2)
+  def <~[A,B](p1:RevP[A], p2:RevP[B]):RevP[A] = ExtractTuple2_1(p1 <:> p2.matcher)
   def <:>[A,B](p1:RevP[A], p2:RevP[B]):RevP[(A,B)] = ParseTuple2(p1, p2)
 
   def ?[A](p:RevP[A]):Matcher = p.matcher match {
@@ -44,16 +44,16 @@ private object RevPCombinators {
     case m => MatchOpt(m)
   }
 
-  def *[A](p:RevP[A]):Matcher = p.matcher match {
-    case MatchOpt(optional) => optional.*
+  def :*[A](p:RevP[A]):Matcher = p.matcher match {
+    case MatchOpt(optional) => optional.:*
     case m@MatchRep(_) => m
     case m => MatchRep(m)
   }
 
-  def +[A](p:RevP[A]):Matcher = p.matcher match {
-    case MatchOpt(optional) => optional.*
+  def :+[A](p:RevP[A]):Matcher = p.matcher match {
+    case MatchOpt(optional) => optional.:*
     case m@MatchRep(_) => m
-    case m => m ~ m.*
+    case m => m ~ m.:*
   }
 
   def ~[A,B](p1:RevP[A], p2:RevP[B]):Matcher = (p1.matcher, p2.matcher) match {

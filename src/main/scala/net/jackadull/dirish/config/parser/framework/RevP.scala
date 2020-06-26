@@ -1,16 +1,17 @@
 package net.jackadull.dirish.config.parser.framework
 
-import RevP.Matcher
+import net.jackadull.dirish.config.parser.framework.RevP.Matcher
 
 import scala.annotation.tailrec
+import scala.language.implicitConversions
 
 trait RevP[A] extends RevPCombinators[A] {
   def apply[S[+_]](src:Src[S]):S[Unit]<=>S[A]
   def matcher:Matcher
 }
 object RevP {
-  def apply(char:Char):Matcher = Matcher.MatchChar(char)
-  def apply(string:String):Matcher = Matcher.MatchString(string)
+  implicit def apply(char:Char):Matcher = Matcher.MatchChar(char)
+  implicit def apply(string:String):Matcher = Matcher.MatchString(string)
 
   trait Matcher extends RevP[Unit] {
     override def apply[S[+_]](src:Src[S]):S[Unit]<=>S[Unit] = <=>.symmetric(`match`(_, src))
@@ -43,8 +44,10 @@ object RevP {
 
     final case class MatchRep(repeated:Matcher) extends Matcher {
       override def `match`[S[+_]](s:S[Unit], src:Src[S]):S[Unit] = {
-        @tailrec def recurse(s:S[Unit]):S[Unit] =
-          if(src.isSuccess(s)) recurse(repeated.`match`(s, src)) else s
+        @tailrec def recurse(s:S[Unit]):S[Unit] = {
+          val s0 = repeated.`match`(s, src)
+          if(src.isSuccess(s0)) recurse(s0) else s
+        }
         recurse(s)
       }
     }
@@ -64,6 +67,25 @@ object RevP {
     final case class MatchString(string:String) extends Matcher {
       override def `match`[S[+_]](s:S[Unit], src:Src[S]):S[Unit] = src(s, string)
     }
+  }
+
+  private[framework] final case class ExtractTuple2_1[A](p:RevP[(A,Unit)]) extends RevP[A] {
+    override def apply[S[+_]](src:Src[S]):S[Unit]<=>S[A] = {
+      val ps = p(src)
+      <=>(
+        to = {s =>
+          val s0:S[(A,Unit)] = ps.to(s)
+          src.flatMap(s0)(t => src.set(s0, t._1))
+        },
+        from = sa => ps.from(src.map(sa)(a => (a, ())))
+      )
+    }
+    override def matcher:Matcher = p.matcher
+  }
+
+  private[framework] final case class ExtractTuple2_2[A](p:RevP[(Unit,A)]) extends RevP[A] {
+    override def apply[S[+_]](src:Src[S]):S[Unit]<=>S[A] = p.map(<=>.tuple2_2(()))(src)
+    override def matcher:Matcher = p.matcher
   }
 
   private[framework] final case class Mapped[A,B](p:RevP[A], f:A<=>B) extends RevP[B] {
@@ -111,7 +133,7 @@ object RevP {
         }
       )
     }
-    override def matcher:Matcher = element.matcher.*
+    override def matcher:Matcher = element.matcher.:*
   }
 
   private[framework] final case class ParseRep1[A](element:RevP[A]) extends RevP[Seq[A]] {
@@ -140,7 +162,7 @@ object RevP {
         }
       )
     }
-    override def matcher:Matcher = element.matcher.+
+    override def matcher:Matcher = element.matcher.:+
   }
 
   private[framework] final case class ParseTuple2[A,B](l:RevP[A], r:RevP[B]) extends RevP[(A,B)] {

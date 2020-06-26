@@ -6,6 +6,9 @@ object MemorySrc {
   def parse[A](sourceText:String, parser:RevP[A]):ReadState[A] =
     parser(Read).to(ReadState.Success((), 0, ReadState.SourceMap(sourceText)))
 
+  def write[A](a:A, parser:RevP[A]):WriteState[Unit] =
+    parser(Write).from(WriteState.WriteString(a, "", None))
+
   object Read extends Src[ReadState] {
     override def apply(s:ReadState[Any], char:Char):ReadState[Unit] = s match {
       case f:ReadState.Failure => f
@@ -34,7 +37,10 @@ object MemorySrc {
 
     override def flatMap[A,A2](s:ReadState[A])(f:A=>ReadState[A2]):ReadState[A2] = s match {
       case f:ReadState.Failure => f
-      case a:ReadState.Success[A] => f(a.value)
+      case a:ReadState.Success[A] => f(a.value) match {
+        case f:ReadState.Failure => f // TODO copy meta info from `a`
+        case b:ReadState.Success[A2] => a.copy(value = b.value)
+      }
     }
 
     override def isSuccess(s:ReadState[Any]):Boolean = s.isInstanceOf[ReadState.Success[Any]]
@@ -74,7 +80,10 @@ object MemorySrc {
 
     override def flatMap[A,A2](s:WriteState[A])(f:A=>WriteState[A2]):WriteState[A2] = s match {
       case f:WriteState.Failure => f
-      case w:WriteState.Success[A] => f(w.value)
+      case w:WriteState.Success[A] => f(w.value) match {
+        case f:WriteState.Failure => f // TODO copy meta info from `w`
+        case w2:WriteState.Success[A2] => w.set(w2.value)
+      }
     }
 
     override def isSuccess(s:WriteState[Any]):Boolean = s.isInstanceOf[WriteState.Success[Any]]
