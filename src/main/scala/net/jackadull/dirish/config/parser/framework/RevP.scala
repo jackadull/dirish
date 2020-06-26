@@ -1,6 +1,6 @@
-package net.jackadull.net.jackadull.dirish.config.parser.framework
+package net.jackadull.dirish.config.parser.framework
 
-import net.jackadull.net.jackadull.dirish.config.parser.framework.RevP.Matcher
+import RevP.Matcher
 
 import scala.annotation.tailrec
 

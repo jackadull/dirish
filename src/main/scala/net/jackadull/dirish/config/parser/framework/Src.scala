@@ -1,4 +1,4 @@
-package net.jackadull.net.jackadull.dirish.config.parser.framework
+package net.jackadull.dirish.config.parser.framework
 
 trait Src[S[+_]] {
   def apply(s:S[Any], char:Char):S[Unit]
