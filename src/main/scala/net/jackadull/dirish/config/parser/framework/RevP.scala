@@ -10,6 +10,7 @@ trait RevP[A] extends RevPCombinators[A] {
 }
 object RevP {
   def apply(char:Char):Matcher = Matcher.MatchChar(char)
+  def apply(string:String):Matcher = Matcher.MatchString(string)
 
   trait Matcher extends RevP[Unit] {
     override def apply[S[+_]](src:Src[S]):S[Unit]<=>S[Unit] = <=>.symmetric(`match`(_, src))
@@ -58,6 +59,10 @@ object RevP {
         }
         recurse(s, elements)
       }
+    }
+
+    final case class MatchString(string:String) extends Matcher {
+      override def `match`[S[+_]](s:S[Unit], src:Src[S]):S[Unit] = src(s, string)
     }
   }
 
