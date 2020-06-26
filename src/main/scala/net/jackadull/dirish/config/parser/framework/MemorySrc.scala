@@ -15,6 +15,15 @@ object MemorySrc {
         else ReadState.Failure(s"Expected '$char'") // TODO proper character escaping
     }
 
+
+    override def apply(s:ReadState[Any], string:String):ReadState[Unit] = s match {
+      case f:ReadState.Failure => f
+      case ReadState.Success(_, index, sourceMap) if (index+string.length)>sourceMap.text.length => ReadState.Failure("Unexpected EOF")
+      case ReadState.Success(_, index, sourceMap) =>
+        if(sourceMap.text.regionMatches(index, string, 0, string.length)) ReadState.Success((), index+string.length, sourceMap)
+        else ReadState.Failure(s"Expected '$string'") // TODO proper string escaping
+    }
+
     override def copy[A](from:ReadState[A], to:ReadState[Any]):ReadState[A] = (from, to) match {
       case (_, f:ReadState.Failure) => f
       case (f:ReadState.Failure, _) => f // TODO copy meta info from `to`
@@ -45,6 +54,12 @@ object MemorySrc {
     override def apply(s:WriteState[Any], char:Char):WriteState[Unit] = s match {
       case f:WriteState.Failure => f
       case s:WriteState.Success[Any] => WriteState.WriteChar((), char, Some(s))
+    }
+
+    override def apply(s:WriteState[Any], string:String):WriteState[Unit] = s match {
+      case f:WriteState.Failure => f
+      case s:WriteState.Success[Any] if string.isEmpty => s.set(())
+      case s:WriteState.Success[Any] => WriteState.WriteString((), string, Some(s))
     }
 
     override def copy[A](from:WriteState[A], to:WriteState[Any]):WriteState[A] = to match {
@@ -101,6 +116,7 @@ object MemorySrc {
         @tailrec def recurse(w:Success[Any]):String = {
           w match {
             case s:WriteChar[Any] => builder.append(s.char)
+            case s:WriteString[Any] => builder.append(s.string)
           }
           w.predecessor match {
             case None => builder.toString()
@@ -119,6 +135,10 @@ object MemorySrc {
     final case class Failure(message:String) extends WriteState[Nothing]
     final case class WriteChar[+A](value:A, char:Char, predecessor:Option[Success[Any]]) extends Success[A] {
       override def individualLength:Int = 1
+      override def set[A2](v:A2):Success[A2] = copy(value = v)
+    }
+    final case class WriteString[+A](value:A, string:String, predecessor:Option[Success[Any]]) extends Success[A] {
+      override def individualLength:Int = string.length
       override def set[A2](v:A2):Success[A2] = copy(value = v)
     }
   }
