@@ -3,6 +3,9 @@ package net.jackadull.dirish.config.parser.framework
 import scala.annotation.tailrec
 
 object MemorySrc {
+  def parse[A](sourceText:String, parser:RevP[A]):ReadState[A] =
+    parser(Read).to(ReadState.Success((), 0, ReadState.SourceMap(sourceText)))
+
   object Read extends Src[ReadState] {
     override def apply(s:ReadState[Any], char:Char):ReadState[Unit] = s match {
       case f:ReadState.Failure => f
@@ -46,7 +49,7 @@ object MemorySrc {
 
     override def copy[A](from:WriteState[A], to:WriteState[Any]):WriteState[A] = to match {
       case f:WriteState.Failure => f
-      case to2:WriteState.Success[A] => from match {
+      case to2:WriteState.Success[Any] => from match {
         case f:WriteState.Failure => f // TODO copy meta info from `to`
         case from2:WriteState.Success[A] => to2.set(from2.value)
       }
@@ -68,7 +71,7 @@ object MemorySrc {
 
     override def set[A](s:WriteState[Any], v:A):WriteState[A] = s match {
       case f:WriteState.Failure => f
-      case w:WriteState.Success[A] => w.set(v)
+      case w:WriteState.Success[Any] => w.set(v)
     }
   }
 
