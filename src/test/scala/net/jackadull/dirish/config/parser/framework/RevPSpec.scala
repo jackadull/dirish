@@ -71,7 +71,7 @@ class RevPSpec extends AnyFreeSpec with Matchers {
     final case class Greeting(adjective:Option[String])
     val p:RevP[Greeting] = {
       import RevP._
-      ("Hello," ~ ' '.:+ ~> ("wonderful" <~ ' '.:+).?< <~ "world!").map(<=>(
+      (("Hello," | "Hi,") ~ ' '.:+ ~> ("wonderful" <~ ' '.:+).?< <~ "world!").map(<=>(
         to = {
           case None => Greeting(None)
           case Some(_) => Greeting(Some("wonderful"))
@@ -87,7 +87,7 @@ class RevPSpec extends AnyFreeSpec with Matchers {
         {case ReadState.Success(Greeting(None), _, _) =>}
     }
     "parses a more complex input case" in {
-      MemorySrc.parse("Hello,  wonderful     world!", p) should matchPattern
+      MemorySrc.parse("Hi,  wonderful     world!", p) should matchPattern
         {case ReadState.Success(Greeting(Some("wonderful")), _, _) =>}
     }
     "writes the source for the simple case" in {
