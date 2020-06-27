@@ -43,6 +43,14 @@ object MemorySrc {
       }
     }
 
+    override def flatMapDeep[A,A2](s:ReadState[A])(f:A=>ReadState[A2]):ReadState[A2] = s match {
+      case f:ReadState.Failure => f
+      case a:ReadState.Success[A] => f(a.value) match {
+        case f:ReadState.Failure => f // TODO copy meta info from `a`
+        case b:ReadState.Success[A2] => a.copy(value = b.value)
+      }
+    }
+
     override def isSuccess(s:ReadState[Any]):Boolean = s.isInstanceOf[ReadState.Success[Any]]
 
     override def map[A,A2](s:ReadState[A])(f:A=>A2):ReadState[A2] = s match {
@@ -86,6 +94,11 @@ object MemorySrc {
       }
     }
 
+    override def flatMapDeep[A,A2](s:WriteState[A])(f:A=>WriteState[A2]):WriteState[A2] = s match {
+      case f:WriteState.Failure => f
+      case w:WriteState.Success[A] => f(w.value)
+    }
+
     override def isSuccess(s:WriteState[Any]):Boolean = s.isInstanceOf[WriteState.Success[Any]]
 
     override def map[A,A2](s:WriteState[A])(f:A=>A2):WriteState[A2] = s match {
@@ -121,14 +134,20 @@ object MemorySrc {
       }
 
       override def toString:String = {
-        val builder = new StringBuilder(length)
+        val chars = Array.ofDim[Char](length)
+        var index = chars.length - 1
         @tailrec def recurse(w:Success[Any]):String = {
           w match {
-            case s:WriteChar[Any] => builder.append(s.char)
-            case s:WriteString[Any] => builder.append(s.string)
+            case s:WriteChar[Any] => chars(index) = s.char; index -= 1
+            case s:WriteString[Any] =>
+              val str = s.string
+              if(str.nonEmpty) {
+                System.arraycopy(str.toCharArray, 0, chars, index-str.length+1, str.length)
+                index -= str.length
+              }
           }
           w.predecessor match {
-            case None => builder.toString()
+            case None => new String(chars)
             case Some(pred) => recurse(pred)
           }
         }

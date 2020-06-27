@@ -14,57 +14,97 @@ object RevP {
   implicit def apply(string:String):Matcher = Matcher.MatchString(string)
 
   trait Matcher extends RevP[Unit] {
-    override def apply[S[+_]](src:Src[S]):S[Unit]<=>S[Unit] = <=>.symmetric(`match`(_, src))
-    def `match`[S[+_]](s:S[Unit], src:Src[S]):S[Unit]
     override def matcher:Matcher = this
   }
   private[framework] object Matcher {
+    sealed trait SymmetricMatcher extends Matcher {
+      override def apply[S[+_]](src:Src[S]):S[Unit]<=>S[Unit] = <=>.symmetric(`match`(_, src))
+      def `match`[S[+_]](s:S[Unit], src:Src[S]):S[Unit]
+    }
+
     final case class MatchAlt(alternatives:List[Matcher]) extends Matcher {
-      override def `match`[S[+_]](s:S[Unit], src:Src[S]):S[Unit] = {
-        @tailrec def recurse(s0:S[Unit], a:List[Matcher]):S[Unit] = a match {
-          case Nil => src.fail(s0, "Unexpected input")
-          case first :: rest =>
-            val s1 = first.`match`(s0, src)
-            if(src.isSuccess(s1)) s1 else recurse(s0, rest)
-        }
-        recurse(s, alternatives)
+      override def apply[S[+_]](src:Src[S]):S[Unit]<=>S[Unit] = {
+        val sAlts = alternatives.map(_(src))
+        <=>(
+          to = {s =>
+            @tailrec def recurse(s:S[Unit], as:List[S[Unit]<=>S[Unit]]):S[Unit] = as match {
+              case Nil => src.fail(s, "Unexpected input")
+              case first :: rest =>
+                val s0 = first.to(s)
+                if(src.isSuccess(s0)) s0 else recurse(s, rest)
+            }
+            recurse(s, sAlts)
+          },
+          from = {s =>
+            @tailrec def recurse(s:S[Unit], as:List[S[Unit]<=>S[Unit]]):S[Unit] = as match {
+              case Nil => src.fail(s, "Unexpected input")
+              case first :: rest =>
+                val s0 = first.from(s)
+                if(src.isSuccess(s0)) s0 else recurse(s, rest)
+            }
+            recurse(s, sAlts)
+          }
+        )
       }
     }
 
-    final case class MatchChar(char:Char) extends Matcher {
+    final case class MatchChar(char:Char) extends SymmetricMatcher {
       override def `match`[S[+_]](s:S[Unit], src:Src[S]):S[Unit] = src(s, char)
     }
 
     final case class MatchOpt(optional:Matcher) extends Matcher {
-      override def `match`[S[+_]](s:S[Unit], src:Src[S]):S[Unit] = {
-        val s0 = optional.`match`(s, src)
-        if(src.isSuccess(s0)) s0 else s
+      override def apply[S[+_]](src:Src[S]):S[Unit]<=>S[Unit] = {
+        val so = optional(src)
+        <=>(
+          to = {s => val s0 = so.to(s); if(src.isSuccess(s0)) s0 else s},
+          from = identity
+        )
       }
     }
 
     final case class MatchRep(repeated:Matcher) extends Matcher {
-      override def `match`[S[+_]](s:S[Unit], src:Src[S]):S[Unit] = {
-        @tailrec def recurse(s:S[Unit]):S[Unit] = {
-          val s0 = repeated.`match`(s, src)
-          if(src.isSuccess(s0)) recurse(s0) else s
-        }
-        recurse(s)
+      override def apply[S[+_]](src:Src[S]):S[Unit]<=>S[Unit] = {
+        val rs = repeated(src)
+        <=>(
+          to = {s =>
+            @tailrec def recurse(s0:S[Unit]):S[Unit] = {
+              val s1 = rs.to(s0)
+              if(src.isSuccess(s1)) recurse(s1) else s0
+            }
+            recurse(s)
+          },
+          from = identity
+        )
       }
     }
 
     final case class MatchSeq(elements:List[Matcher]) extends Matcher {
-      override def `match`[S[+_]](s:S[Unit], src:Src[S]):S[Unit] = {
-        @tailrec def recurse(s0:S[Unit], e:List[Matcher]):S[Unit] = e match {
-          case Nil => s0
-          case first :: rest =>
-            val s1 = first.`match`(s0, src)
-            if(src.isSuccess(s1)) recurse(s1, rest) else s1
-        }
-        recurse(s, elements)
+      override def apply[S[+_]](src:Src[S]):S[Unit]<=>S[Unit] = {
+        val sEs = elements.map(_(src))
+        <=>(
+          to = {s =>
+            @tailrec def recurse(s0:S[Unit], e:List[S[Unit]<=>S[Unit]]):S[Unit] = e match {
+              case Nil => s0
+              case first :: rest =>
+                val s1 = first.to(s0)
+                if(src.isSuccess(s1)) recurse(s1, rest) else s1
+            }
+            recurse(s, sEs)
+          },
+          from = {s =>
+            @tailrec def recurse(s0:S[Unit], e:List[S[Unit]<=>S[Unit]]):S[Unit] = e match {
+              case Nil => s0
+              case first :: rest =>
+                val s1 = first.from(s0)
+                if(src.isSuccess(s1)) recurse(s1, rest) else s1
+            }
+            recurse(s, sEs)
+          }
+        )
       }
     }
 
-    final case class MatchString(string:String) extends Matcher {
+    final case class MatchString(string:String) extends SymmetricMatcher {
       override def `match`[S[+_]](s:S[Unit], src:Src[S]):S[Unit] = src(s, string)
     }
   }
@@ -101,7 +141,7 @@ object RevP {
           val s1 = os.to(s0)
           if(src.isSuccess(s1)) src.map(s1)(Some(_)) else src.set(s0, None)
         },
-        from = s => src.flatMap(s) {
+        from = s => src.flatMapDeep(s) {
           case None => src.set(s, ())
           case Some(a) => os.from(src.set(s, a))
         }
@@ -176,8 +216,7 @@ object RevP {
         },
         from = {s0 =>
           val s1:S[Unit] = ls.from(src.map(s0) {_._1})
-          val s2:S[Unit] = rs.from(src.copy(src.map(s0) {_._2}, s1))
-          s2
+          rs.from(src.copy(src.map(s0) {_._2}, s1))
         }
       )
     }

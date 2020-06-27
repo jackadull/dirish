@@ -24,16 +24,32 @@ class RevPSpec extends AnyFreeSpec with Matchers {
     }
   }
   "Combining basic parsers works for" - {
+    "concatenation" in {
+      val p:RevP[Unit] = RevP('a') ~ RevP('b')
+      MemorySrc.parse("ab", p) should matchPattern {case _:ReadState.Success[Any] =>}
+      MemorySrc.write((), p) match {
+        case f:WriteState.Failure => fail(s"Failed writing: $f")
+        case s:WriteState.Success[Unit] => s.toString should be ("ab")
+      }
+    }
     "repetition" in {
       val p:RevP[Unit] = RevP('a').:+ ~ RevP('b')
       MemorySrc.parse("ab", p) should matchPattern {case _:ReadState.Success[Any] =>}
       MemorySrc.parse("aab", p) should matchPattern {case _:ReadState.Success[Any] =>}
       MemorySrc.parse("aaaaaaab", p) should matchPattern {case _:ReadState.Success[Any] =>}
+      MemorySrc.write((), p) match {
+        case f:WriteState.Failure => fail(s"Failed writing: $f")
+        case s:WriteState.Success[Unit] => s.toString should be ("ab")
+      }
     }
     "optionality" in {
       val p:RevP[Unit] = RevP('a').? ~ RevP('b')
       MemorySrc.parse("b", p) should matchPattern {case _:ReadState.Success[Any] =>}
       MemorySrc.parse("ab", p) should matchPattern {case _:ReadState.Success[Any] =>}
+      MemorySrc.write((), p) match {
+        case f:WriteState.Failure => fail(s"Failed writing: $f")
+        case s:WriteState.Success[Unit] => s.toString should be ("b")
+      }
     }
     "optionality and repetition" in {
       val p:RevP[Option[Unit]] = (RevP('a') <~ RevP('b').:+).?< <~ RevP('c')
@@ -41,6 +57,14 @@ class RevPSpec extends AnyFreeSpec with Matchers {
       MemorySrc.parse("abc", p) should matchPattern {case _:ReadState.Success[Any] =>}
       MemorySrc.parse("abbc", p) should matchPattern {case _:ReadState.Success[Any] =>}
       MemorySrc.parse("abbbc", p) should matchPattern {case _:ReadState.Success[Any] =>}
+      MemorySrc.write(None, p) match {
+        case f:WriteState.Failure => fail(s"Failed writing: $f")
+        case s:WriteState.Success[Unit] => s.toString should be ("c")
+      }
+      MemorySrc.write(Some(()), p) match {
+        case f:WriteState.Failure => fail(s"Failed writing: $f")
+        case s:WriteState.Success[Unit] => s.toString should be ("abc")
+      }
     }
   }
   "A more complex parser" - {
@@ -66,13 +90,13 @@ class RevPSpec extends AnyFreeSpec with Matchers {
       MemorySrc.parse("Hello,  wonderful     world!", p) should matchPattern
         {case ReadState.Success(Greeting(Some("wonderful")), _, _) =>}
     }
-    "writes the source for the simple case" ignore { // TODO reactivate
+    "writes the source for the simple case" in {
       MemorySrc.write(Greeting(None), p) match {
         case s:WriteState.Success[Unit] => s.toString should be ("Hello, world!")
         case unexpected => fail(s"Unexpected write result: $unexpected")
       }
     }
-    "writes the source for the more complex case" ignore { // TODO reactivate
+    "writes the source for the more complex case" in {
       MemorySrc.write(Greeting(Some("wonderful")), p) match {
         case s:WriteState.Success[Unit] => s.toString should be ("Hello, wonderful world!")
         case unexpected => fail(s"Unexpected write result: $unexpected")
