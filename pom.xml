@@ -44,7 +44,7 @@
   </issueManagement>
 
   <properties>
-    <version.dependency.jgit>4.10.0.201712302008-r</version.dependency.jgit>
+    <version.dependency.jgit>6.6.1.202309021850-r</version.dependency.jgit>
     <version.dependency.logback>1.2.3</version.dependency.logback>
   </properties>
 
